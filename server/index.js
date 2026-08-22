@@ -1,6 +1,7 @@
 require('dotenv').config();
 const File = require('./models/File');
 const Peer = require('./models/Peer');
+const { runExchangeRound } = require('./exchange');
 const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
@@ -74,10 +75,19 @@ app.post('/api/tracker/announce', async (req, res) => {
     res.json({ message: 'Peer announced', peer });
 });
 
-app.get('/api/tracker/:fileId/peers', async (req, res) => {
+app.get('/api/tracker/:fileId/peers', async (req, res) => { 
     const peers = await Peer.find({ fileId: req.params.fileId });
     res.json({ peers });
 })
+
+//setInterval is a built-in JavaScript function that runs whatever function 
+//you give it repeatedly, forever, every x seconds, until the process stops
+setInterval(async () => {
+  const fileIds = await Peer.distinct('fileId');
+  for (const fileId of fileIds) {
+    await runExchangeRound(fileId);
+  }
+}, 2000);
 
 app.listen(5000, () => {
     console.log('Server running on http://localhost:5000');
