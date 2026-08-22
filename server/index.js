@@ -2,17 +2,24 @@ require('dotenv').config();
 const File = require('./models/File');
 const Peer = require('./models/Peer');
 const { runExchangeRound } = require('./exchange');
+const TransferLog = require('./models/TransferLog');
 const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
 const crypto = require('crypto');
-const mongoose = require('mongoose')
+const mongoose = require('mongoose');
+const cors = require('cors');
+const { Server } = require('socket.io');
 
 const app = express();
+app.use(cors());
 app.use(express.json());
 const upload = multer({ dest: 'uploads/' });
 
+let simulationRunning = true;
+
 const PIECE_SIZE = 16*1024; //16KB per piece
+
 
 mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('Connected to MongoDB'))
@@ -21,6 +28,7 @@ mongoose.connect(process.env.MONGO_URI)
 app.get('/', (req, res) => {
     res.send('Server is alive');
 })
+
 
 app.post('/api/files/upload', upload.single('file'), async (req, res) => {
     const fileBuffer = fs.readFileSync(req.file.path);
@@ -48,6 +56,7 @@ app.post('/api/files/upload', upload.single('file'), async (req, res) => {
         pieceCount: savedFile.pieceCount
     });
 });
+
 
 app.post('/api/tracker/announce', async (req, res) => {
     console.log('Received body:', req.body);
@@ -80,15 +89,48 @@ app.get('/api/tracker/:fileId/peers', async (req, res) => {
     res.json({ peers });
 })
 
+
+app.post('/api/simulate/pause', (req, res) => {
+  simulationRunning = false;
+  res.json({ message: 'Simulation paused' });
+});
+
+
+app.post('/api/simulate/resume', (req, res) => {
+  simulationRunning = true;
+  res.json({ message: 'Simulation resumed' });
+});
+
+
+app.get('/api/files', async (req, res) => {
+  const files = await File.find().sort({ uploadedAt: 1 });
+  res.json({ files });
+});
+
+
+app.get('/api/tracker/:fileId/activity', async (req, res) => {
+  const logs = await TransferLog.find({ fileId: req.params.fileId })
+    .sort({ timestamp: -1 })
+    .limit(20);
+  res.json({ logs });
+});
+
 //setInterval is a built-in JavaScript function that runs whatever function 
 //you give it repeatedly, forever, every x seconds, until the process stops
 setInterval(async () => {
+  if (!simulationRunning) return;
+
   const fileIds = await Peer.distinct('fileId');
   for (const fileId of fileIds) {
-    await runExchangeRound(fileId);
+    await runExchangeRound(fileId, io);
   }
 }, 2000);
 
-app.listen(5000, () => {
-    console.log('Server running on http://localhost:5000');
+
+const server = app.listen(5000, () => {
+  console.log('Server running on http://localhost:5000');
+});
+
+const io = new Server(server, {
+  cors: { origin: '*' }
 });

@@ -1,7 +1,8 @@
 const Peer = require('./models/Peer');
 const File = require('./models/File');
+const TransferLog = require('./models/TransferLog');
 
-async function runExchangeRound(fileId) {
+async function runExchangeRound(fileId, io) {
   const file = await File.findById(fileId);
   if (!file) return;
 
@@ -36,6 +37,13 @@ async function runExchangeRound(fileId) {
     await sourcePeer.save();
 
     console.log(`${peer.peerLabel} received piece ${pieceIndex} from ${sourcePeer.peerLabel}`);
+    await TransferLog.create({
+        fileId,
+        pieceIndex,
+        fromPeerLabel: sourcePeer.peerLabel,
+        toPeerLabel: peer.peerLabel
+    });
+    io.emit('swarm-update', { fileId: fileId.toString() });
   }
 }
 
