@@ -8,4 +8,6 @@ const transferLogSchema = new mongoose.Schema({
   timestamp: { type: Date, default: Date.now }
 });
 
+transferLogSchema.index({ fileId: 1, toPeerLabel: 1, timestamp: -1 });
+
 module.exports = mongoose.model('TransferLog', transferLogSchema);
