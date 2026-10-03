@@ -10,6 +10,7 @@ const crypto = require('crypto');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const { Server } = require('socket.io');
+const state = require('./state');
 
 const app = express();
 app.use(cors());
@@ -211,6 +212,11 @@ app.get('/api/dev/frequency/:fileId', async (req, res) => {
   }
 
   res.json({ frequency });
+});
+
+
+app.get('/api/dev/state', (req, res) => {
+  res.json(state);
 });
 
 
