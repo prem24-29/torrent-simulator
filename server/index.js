@@ -17,9 +17,20 @@ app.use(express.json());
 const upload = multer({ dest: 'uploads/' });
 
 let simulationRunning = true;
+let roundInProgress = false;
 
 const PIECE_SIZE = 16*1024; //16KB per piece
 
+const TIERS = ['slow', 'medium', 'fast'];
+const NAT_PROBABILITY = 0.3;
+
+function randomTier() {
+  return TIERS[Math.floor(Math.random() * TIERS.length)];
+}
+
+function randomBehindNAT() {
+  return Math.random() < NAT_PROBABILITY;
+}
 
 mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('Connected to MongoDB'))
@@ -60,7 +71,7 @@ app.post('/api/files/upload', upload.single('file'), async (req, res) => {
 
 app.post('/api/tracker/announce', async (req, res) => {
     console.log('Received body:', req.body);
-    const { fileId, peerLabel, bitfield } = req.body;
+    const { fileId, peerLabel, bitfield, tier, behindNAT } = req.body;
 
     const file = await File.findById(fileId);
     if (!file) {
@@ -80,17 +91,28 @@ app.post('/api/tracker/announce', async (req, res) => {
       }
     }
 
+    if (tier !== undefined && !TIERS.includes(tier)) {
+      return res.status(400).json({ error: `tier must be one of: ${TIERS.join(', ')}` });
+    }
+    if (behindNAT !== undefined && typeof behindNAT !== 'boolean') {
+        return res.status(400).json({ error: 'behindNAT must be true or false' });
+    }
+
     let peer = await Peer.findOne({ fileId, peerLabel });
 
     if (peer) {
         if (bitfield) peer.bitfield = bitfield;
+        if (tier !== undefined) peer.tier = tier;
+        if (behindNAT !== undefined) peer.behindNAT = behindNAT;
         peer.lastSeenAt = new Date();
         await peer.save();
     } else {
         peer = await Peer.create({
             fileId,
             peerLabel,
-            bitfield: bitfield || new Array(file.pieceCount).fill(false)
+            bitfield: bitfield || new Array(file.pieceCount).fill(false),
+            tier: tier || randomTier(),
+            behindNAT: behindNAT !== undefined ? behindNAT : randomBehindNAT()
         });
     }
 
@@ -121,7 +143,9 @@ app.post('/api/dev/seed-peers', async (req, res) => {
     const peer = await Peer.create({
       fileId,
       peerLabel: `dev_peer_${Date.now()}_${i}`,
-      bitfield
+      bitfield,
+      tier: randomTier(),
+      behindNAT: randomBehindNAT()
     });
 
     createdPeers.push(peer);
@@ -207,10 +231,16 @@ app.get('/api/tracker/:fileId/activity', async (req, res) => {
 //you give it repeatedly, forever, every x seconds, until the process stops
 setInterval(async () => {
   if (!simulationRunning) return;
+  if (roundInProgress) return;
 
-  const fileIds = await Peer.distinct('fileId');
-  for (const fileId of fileIds) {
-    await runExchangeRound(fileId, io);
+  roundInProgress = true;
+  try {
+    const fileIds = await Peer.distinct('fileId');
+    for (const fileId of fileIds) {
+      await runExchangeRound(fileId, io);
+    }
+  } finally {
+    roundInProgress = false;
   }
 }, 2000);
 
