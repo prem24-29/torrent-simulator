@@ -70,7 +70,7 @@ app.post('/api/tracker/announce', async (req, res) => {
     let peer = await Peer.findOne({ fileId, peerLabel });
 
     if (peer) {
-        peer.bitfield = bitfield;
+        if (bitfield) peer.bitfield = bitfield;
         peer.lastSeenAt = new Date();
         await peer.save();
     } else {
@@ -90,6 +90,66 @@ app.get('/api/tracker/:fileId/peers', async (req, res) => {
 })
 
 
+app.post('/api/dev/seed-peers', async (req, res) => {
+  const { fileId, count } = req.body;
+
+  const file = await File.findById(fileId);
+  if (!file) {
+    return res.status(404).json({ error: 'File not found' });
+  }
+
+  const createdPeers = [];
+
+  for (let i = 0; i < count; i++) {
+    const bitfield = new Array(file.pieceCount)
+      .fill(false)
+      .map(() => Math.random() < 0.5);
+
+    const peer = await Peer.create({
+      fileId,
+      peerLabel: `dev_peer_${Date.now()}_${i}`,
+      bitfield
+    });
+
+    createdPeers.push(peer);
+  }
+
+  io.emit('swarm-update', { fileId });
+
+  res.json({ message: `${count} random peers created`, peers: createdPeers });
+});
+
+
+app.delete('/api/dev/clear-peers', async (req, res) => {
+  const { fileId } = req.body || {};
+
+  if (fileId) {
+    await Peer.deleteMany({ fileId });
+    io.emit('swarm-update', { fileId });
+    return res.json({ message: `All peers cleared for file ${fileId}` });
+  }
+
+  await Peer.deleteMany({});
+  io.emit('swarm-update', { fileId: null });
+  res.json({ message: 'All peers cleared across all files' });
+});
+
+
+app.delete('/api/dev/clear-logs', async (req, res) => {
+  const { fileId } = req.body || {};
+
+  if (fileId) {
+    await TransferLog.deleteMany({ fileId });
+    io.emit('swarm-update', { fileId });
+    return res.json({ message: `Transfer logs cleared for file ${fileId}` });
+  }
+
+  await TransferLog.deleteMany({});
+  io.emit('swarm-update', { fileId: null });
+  res.json({ message: 'All transfer logs cleared across all files' });
+});
+
+
 app.post('/api/simulate/pause', (req, res) => {
   simulationRunning = false;
   res.json({ message: 'Simulation paused' });
@@ -102,6 +162,21 @@ app.post('/api/simulate/resume', (req, res) => {
 });
 
 
+app.get('/api/dev/frequency/:fileId', async (req, res) => {
+  const file = await File.findById(req.params.fileId);
+  const peers = await Peer.find({ fileId: req.params.fileId });
+
+  const frequency = new Array(file.pieceCount).fill(0);
+  for (const peer of peers) {
+    for (let i = 0; i < file.pieceCount; i++) {
+      if (peer.bitfield[i]) frequency[i]++;
+    }
+  }
+
+  res.json({ frequency });
+});
+
+
 app.get('/api/files', async (req, res) => {
   const files = await File.find().sort({ uploadedAt: 1 });
   res.json({ files });
@@ -111,7 +186,7 @@ app.get('/api/files', async (req, res) => {
 app.get('/api/tracker/:fileId/activity', async (req, res) => {
   const logs = await TransferLog.find({ fileId: req.params.fileId })
     .sort({ timestamp: -1 })
-    .limit(20);
+    .limit(10);
   res.json({ logs });
 });
 

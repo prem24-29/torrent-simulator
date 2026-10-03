@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
-import "./App.css";
+import { useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
+import './App.css';
 
-const API_BASE = "http://localhost:5000";
+const API_BASE = 'http://localhost:5000';
 
 function timeAgo(timestamp) {
   const seconds = Math.floor((Date.now() - new Date(timestamp)) / 1000);
@@ -16,6 +16,7 @@ function App() {
   const [fileIndex, setFileIndex] = useState(0);
   const [peers, setPeers] = useState([]);
   const [logs, setLogs] = useState([]);
+  const [isPlaying, setIsPlaying] = useState(true);
 
   useEffect(() => {
     fetch(`${API_BASE}/api/files`)
@@ -41,7 +42,8 @@ function App() {
     const socket = io('http://localhost:5000');
 
     socket.on('swarm-update', (data) => {
-      if (currentFile && data.fileId === currentFile._id) {
+      if (!currentFile) return;
+      if (data.fileId === null || data.fileId === currentFile._id) {
         fetch(`${API_BASE}/api/tracker/${currentFile._id}/peers`)
           .then((res) => res.json())
           .then((peerData) => setPeers(peerData.peers));
@@ -55,46 +57,43 @@ function App() {
     return () => socket.disconnect();
   }, [currentFile]);
 
+  const togglePlayPause = () => {
+    const endpoint = isPlaying ? 'pause' : 'resume';
+    fetch(`${API_BASE}/api/simulate/${endpoint}`, { method: 'POST' });
+    setIsPlaying(!isPlaying);
+  };
+
   if (!currentFile) {
     return <div className="dashboard">Loading...</div>;
   }
 
   const seederCount = peers.filter((p) => p.bitfield.every(Boolean)).length;
   const leecherCount = peers.length - seederCount;
-  const totalOwned = peers.reduce(
-    (sum, p) => sum + p.bitfield.filter(Boolean).length,
-    0,
-  );
+  const totalOwned = peers.reduce((sum, p) => sum + p.bitfield.filter(Boolean).length, 0);
   const totalSlots = peers.length * currentFile.pieceCount;
-  const swarmPercent =
-    totalSlots > 0 ? Math.round((totalOwned / totalSlots) * 100) : 0;
+  const swarmPercent = totalSlots > 0 ? Math.round((totalOwned / totalSlots) * 100) : 0;
 
   return (
     <div className="dashboard">
-      <div className="file-switcher">
-        <button
-          disabled={fileIndex <= 0}
-          onClick={() => setFileIndex(fileIndex - 1)}
-        >
-          {"<"}
-        </button>
-        <div className="file-info">
-          <p>{currentFile.originalName}</p>
-          <p>
-            {currentFile.pieceCount} pieces · uploaded{" "}
-            {new Date(currentFile.uploadedAt).toLocaleDateString()} · file{" "}
-            {fileIndex + 1} of {files.length}
-          </p>
-        </div>
-        <button
-          disabled={fileIndex >= files.length - 1}
-          onClick={() => setFileIndex(fileIndex + 1)}
-        >
-          {">"}
-        </button>
-      </div>
+      <h1 className="dashboard-title">Torrent Swarm Simulator</h1>
 
-      <div className="stats-row">
+      <div className="top-row">
+        <div className="file-switcher">
+          <button disabled={fileIndex <= 0} onClick={() => setFileIndex(fileIndex - 1)}>
+            {'<'}
+          </button>
+          <div className="file-info">
+            <p>{currentFile.originalName}</p>
+            <p>{fileIndex + 1} of {files.length}</p>
+          </div>
+          <button
+            disabled={fileIndex >= files.length - 1}
+            onClick={() => setFileIndex(fileIndex + 1)}
+          >
+            {'>'}
+          </button>
+        </div>
+
         <div className="stat-card">
           <p>Total peers</p>
           <p>{peers.length}</p>
@@ -119,15 +118,11 @@ function App() {
             const isSeeder = peer.bitfield.every(Boolean);
             const isIdle = peer.bitfield.every((has) => !has);
             const badgeClass = isSeeder
-              ? "badge-seeding"
+              ? 'badge-seeding'
               : isIdle
-                ? "badge-idle"
-                : "badge-downloading";
-            const badgeLabel = isSeeder
-              ? "seeding"
-              : isIdle
-                ? "idle"
-                : "downloading";
+              ? 'badge-idle'
+              : 'badge-downloading';
+            const badgeLabel = isSeeder ? 'seeding' : isIdle ? 'idle' : 'downloading';
 
             return (
               <div className="peer-card" key={peer._id}>
@@ -139,7 +134,7 @@ function App() {
                   {peer.bitfield.map((has, index) => (
                     <div
                       key={index}
-                      className={`bitfield-piece ${has ? "piece-owned" : "piece-missing"}`}
+                      className={`bitfield-piece ${has ? 'piece-owned' : 'piece-missing'}`}
                     />
                   ))}
                 </div>
@@ -153,13 +148,21 @@ function App() {
           {logs.map((log) => (
             <div className="activity-row" key={log._id}>
               <span>
-                {log.toPeerLabel} received piece {log.pieceIndex} from{" "}
-                {log.fromPeerLabel}
+                {log.toPeerLabel} received piece {log.pieceIndex} from {log.fromPeerLabel}
               </span>
               <span className="activity-time">{timeAgo(log.timestamp)}</span>
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="control-bar">
+        <button className="play-pause-btn" onClick={togglePlayPause}>
+          {isPlaying ? '⏸' : '▶'}
+        </button>
+        <button className="control-btn-outline">+ Add peer</button>
+        <button className="control-btn-outline">Piece frequency</button>
+        <button className="control-btn-outline">⇧ Upload file</button>
       </div>
     </div>
   );
