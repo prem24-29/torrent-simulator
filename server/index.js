@@ -67,6 +67,19 @@ app.post('/api/tracker/announce', async (req, res) => {
         return res.status(404).json({ error: 'File not found' });
     }
 
+    if (bitfield !== undefined) {
+    const valid =
+        Array.isArray(bitfield) &&
+        bitfield.length === file.pieceCount &&
+        bitfield.every((b) => typeof b === 'boolean');
+
+      if (!valid) {
+          return res.status(400).json({
+              error: `bitfield must be an array of exactly ${file.pieceCount} booleans`
+          });
+      }
+    }
+
     let peer = await Peer.findOne({ fileId, peerLabel });
 
     if (peer) {
