@@ -11,6 +11,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const { Server } = require('socket.io');
 const state = require('./state');
+const { config, getUnchokeSlots } = require('./config');
 
 const app = express();
 app.use(cors());
@@ -24,6 +25,10 @@ const PIECE_SIZE = 16*1024; //16KB per piece
 
 const TIERS = ['slow', 'medium', 'fast'];
 const NAT_PROBABILITY = 0.3;
+
+function isPositiveInt(v) {
+  return Number.isInteger(v) && v >= 1;
+}
 
 function randomTier() {
   return TIERS[Math.floor(Math.random() * TIERS.length)];
@@ -217,6 +222,59 @@ app.get('/api/dev/frequency/:fileId', async (req, res) => {
 
 app.get('/api/dev/state', (req, res) => {
   res.json(state);
+});
+
+
+app.get('/api/config', (req, res) => {
+  res.json({
+    connectionLimit: config.connectionLimit,
+    unchokeSlots: getUnchokeSlots(),
+    unchokeSlotsIsOverridden: config.unchokeSlotsOverride !== null,
+    chokeIntervalMs: config.chokeIntervalMs,
+    maxConcurrentDownloads: config.maxConcurrentDownloads
+  });
+});
+
+app.post('/api/config/connection-limit', (req, res) => {
+  const { value } = req.body || {};
+  if (!isPositiveInt(value)) {
+    return res.status(400).json({ error: 'value must be a whole number, 1 or more' });
+  }
+  config.connectionLimit = value;
+  res.json({ connectionLimit: config.connectionLimit, unchokeSlots: getUnchokeSlots() });
+});
+
+app.post('/api/config/unchoke-slots', (req, res) => {
+  const { value } = req.body || {};
+  if (value === null) {
+    config.unchokeSlotsOverride = null;
+  } else if (isPositiveInt(value)) {
+    config.unchokeSlotsOverride = value;
+  } else {
+    return res.status(400).json({ error: 'value must be a whole number, 1 or more, or null to clear' });
+  }
+  res.json({
+    unchokeSlots: getUnchokeSlots(),
+    unchokeSlotsIsOverridden: config.unchokeSlotsOverride !== null
+  });
+});
+
+app.post('/api/config/choke-interval', (req, res) => {
+  const { value } = req.body || {};
+  if (!isPositiveInt(value) || value < 500) {
+    return res.status(400).json({ error: 'value must be a whole number of milliseconds, 500 or more' });
+  }
+  config.chokeIntervalMs = value;
+  res.json({ chokeIntervalMs: config.chokeIntervalMs });
+});
+
+app.post('/api/config/max-downloads', (req, res) => {
+  const { value } = req.body || {};
+  if (!isPositiveInt(value)) {
+    return res.status(400).json({ error: 'value must be a whole number, 1 or more' });
+  }
+  config.maxConcurrentDownloads = value;
+  res.json({ maxConcurrentDownloads: config.maxConcurrentDownloads });
 });
 
 
