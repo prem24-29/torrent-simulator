@@ -52,6 +52,13 @@ async function runExchangeRound(fileId, io) {
     sendCount[t.fromId] = (sendCount[t.fromId] || 0) + 1;
   }
 
+  // Count how many pieces each receiver is getting right now (fixed for this tick)
+  const recvCount = {};
+  for (const t of state.transfers) {
+    if (t.fileId !== fid) continue;
+    recvCount[t.toId] = (recvCount[t.toId] || 0) + 1;
+  }
+
   for (let i = state.transfers.length - 1; i >= 0; i--) {
     const t = state.transfers[i];
     if (t.fileId !== fid) continue;
@@ -67,7 +74,8 @@ async function runExchangeRound(fileId, io) {
 
     // Sender's upload is shared evenly; the slower end still limits the link
     const uploadShare = state.peers[t.fromId].uploadCap / sendCount[t.fromId];
-    const rate = Math.min(uploadShare, state.peers[t.toId].downloadCap);
+    const downloadShare = state.peers[t.toId].downloadCap / recvCount[t.toId];
+    const rate = Math.min(uploadShare, downloadShare);
     console.log(`${state.peers[t.fromId].peerLabel} -> ${state.peers[t.toId].peerLabel}: ${rate.toFixed(1)} KB/s (${sendCount[t.fromId]} active)`);
     t.bytesDone += rate * 1024 * TICK_SECONDS;
 
