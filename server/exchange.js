@@ -32,6 +32,27 @@ function pickRarestPiece(missingIndexes, frequency) {
   return rarestIndex;
 }
 
+const EMIT_INTERVAL_MS = 1000;
+const lastEmit = {};     // fileId -> time of the last emit
+const pendingEmit = {};  // fileId -> timer waiting to send the trailing emit
+
+// Send 'swarm-update' at most once per EMIT_INTERVAL_MS per file.
+function emitSwarmUpdate(io, fid) {
+  const now = Date.now();
+  const wait = (lastEmit[fid] || 0) + EMIT_INTERVAL_MS - now;
+
+  if (wait <= 0) {
+    lastEmit[fid] = now;
+    io.emit('swarm-update', { fileId: fid });
+  } else if (!pendingEmit[fid]) {
+    pendingEmit[fid] = setTimeout(() => {
+      pendingEmit[fid] = null;
+      lastEmit[fid] = Date.now();
+      io.emit('swarm-update', { fileId: fid });
+    }, wait);
+  }
+}
+
 async function runExchangeRound(fileId, io) {
   const file = await File.findById(fileId);
   if (!file) return;
@@ -102,7 +123,7 @@ async function runExchangeRound(fileId, io) {
       toPeerLabel: receiver.peerLabel
     });
 
-    io.emit('swarm-update', { fileId: fid });
+    emitSwarmUpdate(io, fid);
     console.log(`${receiver.peerLabel} received piece ${t.pieceIndex} from ${sender.peerLabel}`);
   }
 
