@@ -22,7 +22,8 @@ function ensurePeerState(peer) {
     downloadCap: rates.down,
     uploadCap: rates.up,
     downloadCap: rates.down,
-    position: 0
+    position: 0,
+    carryBytes: 0
   };
   return state.peers[id];
 }

@@ -70,6 +70,10 @@ async function runExchangeRound(fileId, io) {
     sender.uploadedBytes += file.pieceSize;
     state.transfers.splice(i, 1);
 
+    // Carry leftover bytes (capped at one piece) into the receiver's next transfer
+    const leftover = t.bytesDone - file.pieceSize;
+    state.peers[t.toId].carryBytes = Math.min(leftover, file.pieceSize);
+
     await receiver.save();
     await sender.save();
 
@@ -111,8 +115,9 @@ async function runExchangeRound(fileId, io) {
       fromId: source._id.toString(),
       toId: peerId,
       pieceIndex,
-      bytesDone: 0
+      bytesDone: state.peers[peerId].carryBytes
     });
+    state.peers[peerId].carryBytes = 0;
   }
 }
 
