@@ -317,7 +317,7 @@ setInterval(async () => {
   } finally {
     roundInProgress = false;
   }
-}, 2000);
+}, 500);
 
 
 const server = app.listen(5000, () => {
