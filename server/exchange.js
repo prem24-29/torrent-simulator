@@ -3,6 +3,7 @@ const File = require('./models/File');
 const TransferLog = require('./models/TransferLog');
 const { ensurePeerState } = require('./bandwidth');
 const state = require('./state');
+const { config } = require('./config');
 const TICK_SECONDS = 0.5; // must match the exchange interval in index.js (500ms)
 
 function countPieceFrequency(peers, pieceCount) {
@@ -105,36 +106,50 @@ async function runExchangeRound(fileId, io) {
     console.log(`${receiver.peerLabel} received piece ${t.pieceIndex} from ${sender.peerLabel}`);
   }
 
-  // PHASE 2: start a new transfer for every peer that isn't already receiving one
+    // PHASE 2: fill each peer's download slots, never picking a piece already in flight
   const frequency = countPieceFrequency(peers, file.pieceCount);
-  const receiving = new Set(state.transfers.map((t) => t.toId));
+
+  // Per receiver: how many transfers it has, and which pieces are reserved
+  const incoming = {};
+  const reserved = {};
+  for (const t of state.transfers) {
+    if (t.fileId !== fid) continue;
+    incoming[t.toId] = (incoming[t.toId] || 0) + 1;
+    if (!reserved[t.toId]) reserved[t.toId] = new Set();
+    reserved[t.toId].add(t.pieceIndex);
+  }
 
   for (const peer of peers) {
     const peerId = peer._id.toString();
-    if (receiving.has(peerId)) continue;
+    if (!reserved[peerId]) reserved[peerId] = new Set();
 
-    const missingIndexes = peer.bitfield
-      .map((has, index) => (has ? null : index))
-      .filter((index) => index !== null);
-    if (missingIndexes.length === 0) continue;
+    while ((incoming[peerId] || 0) < config.maxConcurrentDownloads) {
+      // Pieces I lack, haven't reserved, and that at least one peer holds
+      const wanted = [];
+      for (let i = 0; i < file.pieceCount; i++) {
+        if (!peer.bitfield[i] && !reserved[peerId].has(i) && frequency[i] > 0) wanted.push(i);
+      }
+      if (wanted.length === 0) break;
 
-    const pieceIndex = pickRarestPiece(missingIndexes, frequency);
+      const pieceIndex = pickRarestPiece(wanted, frequency);
 
-    const candidates = peers.filter(
-      (other) => other._id.toString() !== peerId && other.bitfield[pieceIndex]
-    );
-    if (candidates.length === 0) continue;
+      const candidates = peers.filter(
+        (other) => other._id.toString() !== peerId && other.bitfield[pieceIndex]
+      );
+      const source = candidates[Math.floor(Math.random() * candidates.length)];
 
-    const source = candidates[Math.floor(Math.random() * candidates.length)];
+      state.transfers.push({
+        fileId: fid,
+        fromId: source._id.toString(),
+        toId: peerId,
+        pieceIndex,
+        bytesDone: state.peers[peerId].carryBytes
+      });
+      state.peers[peerId].carryBytes = 0;
 
-    state.transfers.push({
-      fileId: fid,
-      fromId: source._id.toString(),
-      toId: peerId,
-      pieceIndex,
-      bytesDone: state.peers[peerId].carryBytes
-    });
-    state.peers[peerId].carryBytes = 0;
+      reserved[peerId].add(pieceIndex);
+      incoming[peerId] = (incoming[peerId] || 0) + 1;
+    }
   }
 }
 
