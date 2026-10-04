@@ -12,6 +12,7 @@ const cors = require('cors');
 const { Server } = require('socket.io');
 const state = require('./state');
 const { config, getUnchokeSlots } = require('./config');
+const { driftAll } = require('./bandwidth');
 
 const app = express();
 app.use(cors());
@@ -294,6 +295,12 @@ app.get('/api/tracker/:fileId/activity', async (req, res) => {
     .limit(10);
   res.json({ logs });
 });
+
+// Bandwidth drift runs on its own clock, separate from the exchange tick.
+setInterval(() => {
+  if (!simulationRunning) return;
+  driftAll();
+}, 2000);
 
 //setInterval is a built-in JavaScript function that runs whatever function 
 //you give it repeatedly, forever, every x seconds, until the process stops

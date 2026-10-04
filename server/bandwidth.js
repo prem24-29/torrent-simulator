@@ -19,9 +19,29 @@ function ensurePeerState(peer) {
     homeTier: peer.tier,
     neighborTier: pickNeighborTier(peer.tier),
     uploadCap: rates.up,
-    downloadCap: rates.down
+    downloadCap: rates.down,
+    uploadCap: rates.up,
+    downloadCap: rates.down,
+    position: 0
   };
   return state.peers[id];
 }
 
-module.exports = { ensurePeerState };
+const DRIFT_STEP = 0.1; // 10% of the gap between home and neighbor tier, per step
+
+// Move one peer's capacity a small random step inside its band.
+function driftPeer(p) {
+  const direction = Math.random() < 0.5 ? -1 : 1;
+  p.position = Math.min(1, Math.max(0, p.position + direction * DRIFT_STEP));
+
+  const home = config.tiers[p.homeTier];
+  const neighbor = config.tiers[p.neighborTier];
+  p.uploadCap = home.up + (neighbor.up - home.up) * p.position;
+  p.downloadCap = home.down + (neighbor.down - home.down) * p.position;
+}
+
+function driftAll() {
+  for (const id of Object.keys(state.peers)) driftPeer(state.peers[id]);
+}
+
+module.exports = { ensurePeerState, driftAll };
