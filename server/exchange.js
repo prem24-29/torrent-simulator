@@ -1,6 +1,7 @@
 const Peer = require('./models/Peer');
 const File = require('./models/File');
 const TransferLog = require('./models/TransferLog');
+const { ensurePeerState } = require('./bandwidth');
 
 function countPieceFrequency(peers, pieceCount) {
   const frequency = new Array(pieceCount).fill(0);
@@ -34,6 +35,8 @@ async function runExchangeRound(fileId, io) {
 
   const peers = await Peer.find({ fileId });
   if (peers.length < 2) return;
+
+  for (const peer of peers) ensurePeerState(peer);
 
   const frequency = countPieceFrequency(peers, file.pieceCount);
 

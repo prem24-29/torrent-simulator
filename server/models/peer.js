@@ -11,6 +11,8 @@ const peerSchema = new mongoose.Schema({
     uploadedBytes: { type: Number, default: 0 },
     downloadedBytes: { type: Number, default: 0 },
     status: { type: String, enum: ['seeding', 'downloading', 'idle'], default: 'idle' },
+    tier: { type: String, enum: ['slow', 'medium', 'fast'], default: 'medium' },
+    behindNAT: { type: Boolean, default: false },
     lastSeenAt: { type: Date, default: Date.now }
 });
 

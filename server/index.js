@@ -168,11 +168,15 @@ app.delete('/api/dev/clear-peers', async (req, res) => {
 
   if (fileId) {
     await Peer.deleteMany({ fileId });
+    for (const id of Object.keys(state.peers)) {
+      if (state.peers[id].fileId === fileId) delete state.peers[id];
+    }
     io.emit('swarm-update', { fileId });
     return res.json({ message: `All peers cleared for file ${fileId}` });
   }
 
   await Peer.deleteMany({});
+  for (const id of Object.keys(state.peers)) delete state.peers[id];
   io.emit('swarm-update', { fileId: null });
   res.json({ message: 'All peers cleared across all files' });
 });
