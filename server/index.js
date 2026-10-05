@@ -13,6 +13,7 @@ const { Server } = require('socket.io');
 const state = require('./state');
 const { config, getUnchokeSlots } = require('./config');
 const { driftAll } = require('./bandwidth');
+const { formConnections } = require('./connections');
 
 const app = express();
 app.use(cors());
@@ -227,6 +228,15 @@ app.get('/api/dev/frequency/:fileId', async (req, res) => {
 
 app.get('/api/dev/state', (req, res) => {
   res.json(state);
+});
+
+
+app.post('/api/dev/form-connections', async (req, res) => {
+  const { fileId } = req.body || {};
+  const peers = await Peer.find({ fileId });
+  const conns = formConnections(peers, config.connectionLimit);
+  for (const id of Object.keys(conns)) state.connections[id] = conns[id];
+  res.json({ connections: conns });
 });
 
 

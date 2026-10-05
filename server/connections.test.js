@@ -1,4 +1,6 @@
 const { getCandidatePeers } = require('./connections');
+const { formConnections } = require('./connections');
+const { scoreCandidate, rankCandidates } = require('./connections');
 
 const makePeer = (id) => ({ _id: { toString: () => id } });
 
@@ -20,8 +22,6 @@ test('does not modify the original list', () => {
   getCandidatePeers(a, all);
   expect(all.length).toBe(2);
 });
-
-const { scoreCandidate, rankCandidates } = require('./connections');
 
 const bits = (id, str) => ({
   _id: { toString: () => id },
@@ -77,4 +77,35 @@ test('rank does not modify the original list', () => {
   const all = [bits('a', '10'), bits('b', '11')];
   rankCandidates(me, all, 1);
   expect(all.length).toBe(2);
+});
+
+test('links are symmetric', () => {
+  const peers = [bits('a', '00'), bits('b', '10'), bits('c', '01')];
+  const conns = formConnections(peers, 8);
+  for (const id of Object.keys(conns)) {
+    for (const other of conns[id]) expect(conns[other]).toContain(id);
+  }
+});
+
+test('no peer exceeds the limit', () => {
+  const peers = [];
+  for (let i = 0; i < 10; i++) peers.push(bits('p' + i, i === 0 ? '1111' : '0000'));
+  const conns = formConnections(peers, 3);
+  for (const id of Object.keys(conns)) expect(conns[id].length).toBeLessThanOrEqual(3);
+});
+
+test('no self links and no duplicates', () => {
+  const peers = [bits('a', '00'), bits('b', '11'), bits('c', '10')];
+  const conns = formConnections(peers, 8);
+  for (const id of Object.keys(conns)) {
+    expect(conns[id]).not.toContain(id);
+    expect(new Set(conns[id]).size).toBe(conns[id].length);
+  }
+});
+
+test('peers with nothing to offer each other stay unconnected', () => {
+  const peers = [bits('a', '11'), bits('b', '11')];
+  const conns = formConnections(peers, 8);
+  expect(conns['a']).toEqual([]);
+  expect(conns['b']).toEqual([]);
 });

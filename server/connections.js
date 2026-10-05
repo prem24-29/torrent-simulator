@@ -24,4 +24,30 @@ function rankCandidates(peer, candidates, limit, rng = Math.random) {
     .map((x) => x.candidate);
 }
 
-module.exports = { getCandidatePeers, scoreCandidate, rankCandidates };
+// Build symmetric connection lists. A link forms only if BOTH peers have a free slot.
+// Returns { peerId: [connectedPeerIds] } and does not touch shared state itself.
+function formConnections(peers, limit, rng = Math.random) {
+  const conns = {};
+  for (const p of peers) conns[p._id.toString()] = [];
+
+  // Shuffle so no peer gets first pick every time
+  const order = [...peers].sort(() => rng() - 0.5);
+
+  for (const peer of order) {
+    const myId = peer._id.toString();
+    const ranked = rankCandidates(peer, getCandidatePeers(peer, peers), peers.length, rng);
+
+    for (const other of ranked) {
+      if (conns[myId].length >= limit) break;
+      const otherId = other._id.toString();
+      if (conns[myId].includes(otherId)) continue;
+      if (conns[otherId].length >= limit) continue;
+
+      conns[myId].push(otherId);
+      conns[otherId].push(myId);
+    }
+  }
+  return conns;
+}
+
+module.exports = { getCandidatePeers, scoreCandidate, rankCandidates, formConnections };
