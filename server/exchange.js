@@ -4,6 +4,7 @@ const TransferLog = require('./models/TransferLog');
 const { ensurePeerState } = require('./bandwidth');
 const state = require('./state');
 const { config } = require('./config');
+const { formConnections } = require('./connections');
 const TICK_SECONDS = 0.5; // must match the exchange interval in index.js (500ms)
 
 function countPieceFrequency(peers, pieceCount) {
@@ -66,6 +67,12 @@ async function runExchangeRound(fileId, io) {
   for (const peer of peers) byId[peer._id.toString()] = peer;
   const fid = fileId.toString();
 
+  // Temporary bootstrap (replaced by the reshuffle in C7): peers with no list yet get connections
+  if (peers.some((p) => state.connections[p._id.toString()] === undefined)) {
+    const conns = formConnections(peers, config.connectionLimit);
+    for (const id of Object.keys(conns)) state.connections[id] = conns[id];
+  }
+
   // PHASE 1: advance in-flight transfers (iterate backwards so removing is safe)
   // Count how many transfers each sender is serving right now (fixed for this tick)
   const sendCount = {};
@@ -127,7 +134,7 @@ async function runExchangeRound(fileId, io) {
     console.log(`${receiver.peerLabel} received piece ${t.pieceIndex} from ${sender.peerLabel}`);
   }
 
-    // PHASE 2: fill each peer's download slots, never picking a piece already in flight
+  // PHASE 2: fill each peer's download slots, never picking a piece already in flight
   const frequency = countPieceFrequency(peers, file.pieceCount);
 
   // Per receiver: how many transfers it has, and which pieces are reserved
@@ -144,19 +151,20 @@ async function runExchangeRound(fileId, io) {
     const peerId = peer._id.toString();
     if (!reserved[peerId]) reserved[peerId] = new Set();
 
+    // Only my connections can serve me
+    const myConns = (state.connections[peerId] || []).map((id) => byId[id]).filter(Boolean);
+
     while ((incoming[peerId] || 0) < config.maxConcurrentDownloads) {
-      // Pieces I lack, haven't reserved, and that at least one peer holds
+      // Pieces I lack, haven't reserved, and at least one connection holds
       const wanted = [];
       for (let i = 0; i < file.pieceCount; i++) {
-        if (!peer.bitfield[i] && !reserved[peerId].has(i) && frequency[i] > 0) wanted.push(i);
+        if (!peer.bitfield[i] && !reserved[peerId].has(i) && myConns.some((c) => c.bitfield[i])) wanted.push(i);
       }
       if (wanted.length === 0) break;
 
       const pieceIndex = pickRarestPiece(wanted, frequency);
 
-      const candidates = peers.filter(
-        (other) => other._id.toString() !== peerId && other.bitfield[pieceIndex]
-      );
+      const candidates = myConns.filter((c) => c.bitfield[pieceIndex]);
       const source = candidates[Math.floor(Math.random() * candidates.length)];
 
       state.transfers.push({

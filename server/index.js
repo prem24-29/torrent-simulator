@@ -169,7 +169,9 @@ app.delete('/api/dev/clear-peers', async (req, res) => {
   const { fileId } = req.body || {};
 
   if (fileId) {
+    const doomed = await Peer.find({ fileId }, '_id');
     await Peer.deleteMany({ fileId });
+    for (const d of doomed) delete state.connections[d._id.toString()];
     for (const id of Object.keys(state.peers)) {
       if (state.peers[id].fileId === fileId) delete state.peers[id];
     }
@@ -179,6 +181,7 @@ app.delete('/api/dev/clear-peers', async (req, res) => {
 
   await Peer.deleteMany({});
   for (const id of Object.keys(state.peers)) delete state.peers[id];
+  for (const id of Object.keys(state.connections)) delete state.connections[id];
   io.emit('swarm-update', { fileId: null });
   res.json({ message: 'All peers cleared across all files' });
 });
