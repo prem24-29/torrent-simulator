@@ -17,5 +17,14 @@ function pickRandomUnchoked(peer, conns, slots, rng = Math.random) {
     .sort(() => rng() - 0.5)
     .slice(0, slots);
 }
+// Pick up to `slots` interested connections, highest reciprocity score first.
+// `scores` is { peerLabel: bytesTheySentMe }. Ties are broken randomly.
+function pickByReciprocity(peer, conns, slots, scores, rng = Math.random) {
+  return filterInterested(peer, conns)
+    .map((c) => ({ c, score: scores[c.peerLabel] || 0, tie: rng() }))
+    .sort((a, b) => b.score - a.score || a.tie - b.tie)
+    .slice(0, slots)
+    .map((x) => x.c);
+}
 
-module.exports = { isInterested, filterInterested, pickRandomUnchoked };
+module.exports = { isInterested, filterInterested, pickRandomUnchoked, pickByReciprocity };

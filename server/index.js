@@ -15,6 +15,7 @@ const { config, getUnchokeSlots } = require('./config');
 const { driftAll } = require('./bandwidth');
 const { formConnections } = require('./connections');
 const { pickRandomUnchoked } = require('./choke');
+const { getReciprocity } = require('./reciprocity');
 
 const app = express();
 app.use(cors());
@@ -356,7 +357,21 @@ app.post('/api/dev/rechoke', async (req, res) => {
   for (const peer of peers) {
     const id = peer._id.toString();
     const conns = (state.connections[id] || []).map((x) => byId[x]).filter(Boolean);
-    state.unchoked[id] = pickRandomUnchoked(peer, conns, getUnchokeSlots()).map((p) => p._id.toString());
+    const isSeeder = peer.bitfield.every(Boolean);
+    const scores = isSeeder ? {} : await getReciprocity(fileId, peer.peerLabel, file.pieceSize);
+    const picked = isSeeder
+      ? pickRandomUnchoked(peer, conns, getUnchokeSlots())
+      : pickByReciprocity(peer, conns, getUnchokeSlots(), scores);
+    state.unchoked[id] = picked.map((p) => p._id.toString());
   }
   res.json({ unchoked: state.unchoked });
+});
+
+
+app.get('/api/dev/reciprocity/:fileId/:peerLabel', async (req, res) => {
+  const file = await File.findById(req.params.fileId);
+  if (!file) return res.status(404).json({ error: 'File not found' });
+  const windowMs = Number(req.query.windowMs) || 10000;
+  const result = await getReciprocity(req.params.fileId, req.params.peerLabel, file.pieceSize, windowMs);
+  res.json({ windowMs, bytesReceivedFrom: result });
 });

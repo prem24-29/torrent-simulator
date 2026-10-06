@@ -1,4 +1,6 @@
-const { isInterested, filterInterested, pickRandomUnchoked } = require('./choke');
+const { isInterested, filterInterested, pickRandomUnchoked, pickByReciprocity } = require('./choke');
+
+const named = (label, str) => ({ ...bits(label, str), peerLabel: label });
 
 const bits = (id, str) => ({
   _id: { toString: () => id },
@@ -62,4 +64,37 @@ test('unchoke does not modify the original list', () => {
   const all = [bits('a', '00'), bits('b', '00')];
   pickRandomUnchoked(me, all, 1);
   expect(all.length).toBe(2);
+});
+
+test('reciprocity ranks the biggest senders first', () => {
+  const me = named('me', '11');
+  const a = named('a', '00');
+  const b = named('b', '00');
+  const c = named('c', '00');
+  const result = pickByReciprocity(me, [a, b, c], 2, { a: 16384, b: 49152, c: 0 });
+  expect(result.map((p) => p.peerLabel)).toEqual(['b', 'a']);
+});
+
+test('reciprocity skips uninterested connections even if they sent a lot', () => {
+  const me = named('me', '10');
+  const full = named('full', '11');
+  const needy = named('needy', '00');
+  const result = pickByReciprocity(me, [full, needy], 2, { full: 99999, needy: 0 });
+  expect(result.map((p) => p.peerLabel)).toEqual(['needy']);
+});
+
+test('reciprocity breaks ties with the random source', () => {
+  const me = named('me', '11');
+  const a = named('a', '00');
+  const b = named('b', '00');
+  const seq = [0.9, 0.1]; // a gets 0.9, b gets 0.1 -> b first
+  let i = 0;
+  const result = pickByReciprocity(me, [a, b], 2, {}, () => seq[i++]);
+  expect(result.map((p) => p.peerLabel)).toEqual(['b', 'a']);
+});
+
+test('reciprocity respects the slot count', () => {
+  const me = named('me', '11');
+  const all = [named('a', '00'), named('b', '00'), named('c', '00')];
+  expect(pickByReciprocity(me, all, 1, {}).length).toBe(1);
 });

@@ -4,7 +4,8 @@ const TransferLog = require('./models/TransferLog');
 const { ensurePeerState } = require('./bandwidth');
 const state = require('./state');
 const { config, getUnchokeSlots } = require('./config');
-const { pickRandomUnchoked } = require('./choke');
+const { pickRandomUnchoked, pickByReciprocity } = require('./choke');
+const { getReciprocity } = require('./reciprocity');
 const { formConnections, reshufflerPeer } = require('./connections');
 const TICK_SECONDS = 0.5; // must match the exchange interval in index.js (500ms)
 
@@ -89,12 +90,17 @@ async function runExchangeRound(fileId, io) {
   }
 
 
-    // Temporary bootstrap (D8 replaces with a timer): peers with no unchoke set get one
+  // Temporary bootstrap (D8 replaces with a timer): peers with no unchoke set get one
   for (const peer of peers) {
     const id = peer._id.toString();
     if (state.unchoked[id] !== undefined) continue;
     const conns = (state.connections[id] || []).map((x) => byId[x]).filter(Boolean);
-    state.unchoked[id] = pickRandomUnchoked(peer, conns, getUnchokeSlots()).map((p) => p._id.toString());
+    const isSeeder = peer.bitfield.every(Boolean);
+    const scores = isSeeder ? {} : await getReciprocity(fileId, peer.peerLabel, file.pieceSize);
+    const picked = isSeeder
+      ? pickRandomUnchoked(peer, conns, getUnchokeSlots())
+      : pickByReciprocity(peer, conns, getUnchokeSlots(), scores);
+    state.unchoked[id] = picked.map((p) => p._id.toString());
   }
 
 
