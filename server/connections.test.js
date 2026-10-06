@@ -126,3 +126,32 @@ test('reshuffle never links a peer to itself', () => {
   reshufflePeer(peers[0], peers, conns, 8);
   expect(conns['a']).not.toContain('a');
 });
+
+const { canConnectDirectly } = require('./connections');
+
+const nat = (id, str) => ({ ...bits(id, str), behindNAT: true });
+
+test('two NATd peers cannot connect directly', () => {
+  expect(canConnectDirectly(nat('a', '0'), nat('b', '1'))).toBe(false);
+});
+
+test('NATd to public, and public to public, can connect', () => {
+  expect(canConnectDirectly(nat('a', '0'), bits('p', '1'))).toBe(true);
+  expect(canConnectDirectly(bits('p', '1'), bits('q', '0'))).toBe(true);
+});
+
+test('formation never links two NATd peers', () => {
+  const peers = [nat('a', '00'), nat('b', '11'), bits('c', '11')];
+  const conns = formConnections(peers, 8);
+  expect(conns['a']).not.toContain('b');
+  expect(conns['b']).not.toContain('a');
+  expect(conns['a']).toContain('c');
+});
+
+test('reshuffle never links two NATd peers', () => {
+  const peers = [nat('a', '00'), nat('b', '11'), bits('c', '11')];
+  const conns = formConnections(peers, 8);
+  reshufflePeer(peers[0], peers, conns, 8);
+  expect(conns['a']).not.toContain('b');
+  expect(conns['b']).not.toContain('a');
+});

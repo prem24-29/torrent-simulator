@@ -24,6 +24,13 @@ function rankCandidates(peer, candidates, limit, rng = Math.random) {
     .map((x) => x.candidate);
 }
 
+
+// Two NAT'd peers can't connect directly. Anything else can.
+function canConnectDirectly(a, b) {
+  return !(a.behindNAT && b.behindNAT);
+}
+
+
 // Build symmetric connection lists. A link forms only if BOTH peers have a free slot.
 // Returns { peerId: [connectedPeerIds] } and does not touch shared state itself.
 function formConnections(peers, limit, rng = Math.random) {
@@ -40,6 +47,7 @@ function formConnections(peers, limit, rng = Math.random) {
     for (const other of ranked) {
       if (conns[myId].length >= limit) break;
       const otherId = other._id.toString();
+      if (!canConnectDirectly(peer, other)) continue;
       if (conns[myId].includes(otherId)) continue;
       if (conns[otherId].length >= limit) continue;
 
@@ -64,6 +72,7 @@ function reshufflePeer(peer, peers, conns, limit, rng = Math.random) {
   for (const other of ranked) {
     if (conns[myId].length >= limit) break;
     const otherId = other._id.toString();
+    if (!canConnectDirectly(peer, other)) continue;
     if (!conns[otherId]) conns[otherId] = [];
     if (conns[otherId].length >= limit) continue;
     conns[myId].push(otherId);
@@ -71,4 +80,4 @@ function reshufflePeer(peer, peers, conns, limit, rng = Math.random) {
   }
 }
 
-module.exports = { getCandidatePeers, scoreCandidate, rankCandidates, formConnections, reshufflePeer };
+module.exports = { getCandidatePeers, scoreCandidate, rankCandidates, formConnections, reshufflePeer, canConnectDirectly };
