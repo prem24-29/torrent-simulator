@@ -27,4 +27,18 @@ function pickByReciprocity(peer, conns, slots, scores, rng = Math.random) {
     .map((x) => x.c);
 }
 
-module.exports = { isInterested, filterInterested, pickRandomUnchoked, pickByReciprocity };
+// Pick up to `slots` interested connections, fastest link first (for seeders).
+// `caps` is { peerId: { uploadCap, downloadCap } }, i.e. state.peers.
+function pickByLinkRate(peer, conns, slots, caps, rng = Math.random) {
+  const myUp = (caps[peer._id.toString()] || {}).uploadCap || 0;
+  return filterInterested(peer, conns)
+    .map((c) => {
+      const theirDown = (caps[c._id.toString()] || {}).downloadCap || 0;
+      return { c, rate: Math.min(myUp, theirDown), tie: rng() };
+    })
+    .sort((a, b) => b.rate - a.rate || a.tie - b.tie)
+    .slice(0, slots)
+    .map((x) => x.c);
+}
+
+module.exports = { isInterested, filterInterested, pickRandomUnchoked, pickByReciprocity, pickByLinkRate };

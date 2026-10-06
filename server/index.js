@@ -360,7 +360,7 @@ app.post('/api/dev/rechoke', async (req, res) => {
     const isSeeder = peer.bitfield.every(Boolean);
     const scores = isSeeder ? {} : await getReciprocity(fileId, peer.peerLabel, file.pieceSize);
     const picked = isSeeder
-      ? pickRandomUnchoked(peer, conns, getUnchokeSlots())
+      ? pickByLinkRate(peer, conns, getUnchokeSlots(), state.peers)
       : pickByReciprocity(peer, conns, getUnchokeSlots(), scores);
     state.unchoked[id] = picked.map((p) => p._id.toString());
   }

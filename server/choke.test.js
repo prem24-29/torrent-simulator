@@ -1,4 +1,4 @@
-const { isInterested, filterInterested, pickRandomUnchoked, pickByReciprocity } = require('./choke');
+const { isInterested, filterInterested, pickRandomUnchoked, pickByReciprocity, pickByLinkRate } = require('./choke');
 
 const named = (label, str) => ({ ...bits(label, str), peerLabel: label });
 
@@ -97,4 +97,44 @@ test('reciprocity respects the slot count', () => {
   const me = named('me', '11');
   const all = [named('a', '00'), named('b', '00'), named('c', '00')];
   expect(pickByReciprocity(me, all, 1, {}).length).toBe(1);
+});
+
+test('link rate ranks the fastest receivers first', () => {
+  const seeder = bits('s', '11');
+  const slow = bits('slow', '00');
+  const fast = bits('fast', '00');
+  const caps = {
+    s: { uploadCap: 400 },
+    slow: { downloadCap: 100 },
+    fast: { downloadCap: 300 }
+  };
+  const result = pickByLinkRate(seeder, [slow, fast], 2, caps);
+  expect(result.map((p) => p._id.toString())).toEqual(['fast', 'slow']);
+});
+
+test('link rate is limited by the seeder upload, so fast receivers tie', () => {
+  const seeder = bits('s', '11');
+  const a = bits('a', '00');
+  const b = bits('b', '00');
+  const caps = { s: { uploadCap: 50 }, a: { downloadCap: 200 }, b: { downloadCap: 1600 } };
+  const seq = [0.9, 0.1]; // a gets 0.9, b gets 0.1 -> b first
+  let i = 0;
+  const result = pickByLinkRate(seeder, [a, b], 2, caps, () => seq[i++]);
+  expect(result.map((p) => p._id.toString())).toEqual(['b', 'a']);
+});
+
+test('link rate skips uninterested connections', () => {
+  const seeder = bits('s', '10');
+  const full = bits('full', '11');
+  const needy = bits('needy', '00');
+  const caps = { s: { uploadCap: 400 }, full: { downloadCap: 1600 }, needy: { downloadCap: 200 } };
+  const result = pickByLinkRate(seeder, [full, needy], 2, caps);
+  expect(result.map((p) => p._id.toString())).toEqual(['needy']);
+});
+
+test('link rate respects the slot count', () => {
+  const seeder = bits('s', '11');
+  const all = [bits('a', '00'), bits('b', '00'), bits('c', '00')];
+  const caps = { s: { uploadCap: 400 }, a: { downloadCap: 1 }, b: { downloadCap: 2 }, c: { downloadCap: 3 } };
+  expect(pickByLinkRate(seeder, all, 2, caps).length).toBe(2);
 });
