@@ -11,4 +11,11 @@ function filterInterested(peer, conns) {
   return conns.filter((c) => isInterested(peer, c));
 }
 
-module.exports = { isInterested, filterInterested };
+// Pick up to `slots` random interested connections. D4-D6 replace this with smarter ranking.
+function pickRandomUnchoked(peer, conns, slots, rng = Math.random) {
+  return [...filterInterested(peer, conns)]
+    .sort(() => rng() - 0.5)
+    .slice(0, slots);
+}
+
+module.exports = { isInterested, filterInterested, pickRandomUnchoked };

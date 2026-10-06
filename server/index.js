@@ -14,6 +14,7 @@ const state = require('./state');
 const { config, getUnchokeSlots } = require('./config');
 const { driftAll } = require('./bandwidth');
 const { formConnections } = require('./connections');
+const { pickRandomUnchoked } = require('./choke');
 
 const app = express();
 app.use(cors());
@@ -171,7 +172,11 @@ app.delete('/api/dev/clear-peers', async (req, res) => {
   if (fileId) {
     const doomed = await Peer.find({ fileId }, '_id');
     await Peer.deleteMany({ fileId });
-    for (const d of doomed) delete state.connections[d._id.toString()];
+    for (const d of doomed) {
+      delete state.connections[d._id.toString()];
+      delete state.unchoked[d._id.toString()];
+    }
+
     for (const id of Object.keys(state.peers)) {
       if (state.peers[id].fileId === fileId) delete state.peers[id];
     }
@@ -182,6 +187,7 @@ app.delete('/api/dev/clear-peers', async (req, res) => {
   await Peer.deleteMany({});
   for (const id of Object.keys(state.peers)) delete state.peers[id];
   for (const id of Object.keys(state.connections)) delete state.connections[id];
+  for (const id of Object.keys(state.unchoked)) delete state.unchoked[id];
   io.emit('swarm-update', { fileId: null });
   res.json({ message: 'All peers cleared across all files' });
 });
@@ -339,4 +345,18 @@ const server = app.listen(5000, () => {
 
 const io = new Server(server, {
   cors: { origin: '*' }
+});
+
+
+app.post('/api/dev/rechoke', async (req, res) => {
+  const { fileId } = req.body || {};
+  const peers = await Peer.find({ fileId });
+  const byId = {};
+  for (const p of peers) byId[p._id.toString()] = p;
+  for (const peer of peers) {
+    const id = peer._id.toString();
+    const conns = (state.connections[id] || []).map((x) => byId[x]).filter(Boolean);
+    state.unchoked[id] = pickRandomUnchoked(peer, conns, getUnchokeSlots()).map((p) => p._id.toString());
+  }
+  res.json({ unchoked: state.unchoked });
 });

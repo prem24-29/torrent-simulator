@@ -1,4 +1,4 @@
-const { isInterested, filterInterested } = require('./choke');
+const { isInterested, filterInterested, pickRandomUnchoked } = require('./choke');
 
 const bits = (id, str) => ({
   _id: { toString: () => id },
@@ -40,5 +40,26 @@ test('filter does not modify the original list', () => {
   const me = bits('me', '10');
   const all = [bits('a', '00'), bits('b', '11')];
   filterInterested(me, all);
+  expect(all.length).toBe(2);
+});
+
+test('unchoke picks only interested connections', () => {
+  const me = bits('me', '110');
+  const wants = bits('w', '000');
+  const full = bits('f', '111');
+  const result = pickRandomUnchoked(me, [wants, full], 4);
+  expect(result.map((p) => p._id.toString())).toEqual(['w']);
+});
+
+test('unchoke respects the slot count', () => {
+  const me = bits('me', '11');
+  const all = [bits('a', '00'), bits('b', '00'), bits('c', '00')];
+  expect(pickRandomUnchoked(me, all, 2).length).toBe(2);
+});
+
+test('unchoke does not modify the original list', () => {
+  const me = bits('me', '11');
+  const all = [bits('a', '00'), bits('b', '00')];
+  pickRandomUnchoked(me, all, 1);
   expect(all.length).toBe(2);
 });
