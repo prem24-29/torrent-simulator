@@ -6,7 +6,7 @@ const state = require('./state');
 const { config, getUnchokeSlots } = require('./config');
 const { pickByReciprocity, pickByLinkRate, pickOptimistic, isServing } = require('./choke');
 const { getReciprocity } = require('./reciprocity');
-const { formConnections, reshufflerPeer } = require('./connections');
+const { formConnections, reshufflePeer, pruneTunnels, formTunnels } = require('./connections');
 const TICK_SECONDS = 0.5; // must match the exchange interval in index.js (500ms)
 
 function countPieceFrequency(peers, pieceCount) {
@@ -98,6 +98,9 @@ async function runExchangeRound(fileId, io) {
     ps.nextReshuffleAt = now + 25000 * (0.8 + Math.random() * 0.4);
   }
 
+  // Tunnels: drop broken ones, then fill free slots of NATd peers with relayed links
+  pruneTunnels(state.connections, state.tunnels);
+  formTunnels(peers, state.connections, state.tunnels, config.connectionLimit);
 
     // Re-choke: each peer re-picks its unchoke set every chokeIntervalMs
   for (const peer of peers) {

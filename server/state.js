@@ -5,7 +5,8 @@ const state = {
   transfers: [],    // in-flight transfers, added in layer B
   connections: {},   // peerId -> list of connected peerIds, added in layer C
   unchoked: {},
-  optimistic: {}    // peerId -> { target: peerId or null, nextAt: timestamp }
+  optimistic: {},    // peerId -> { target: peerId or null, nextAt: timestamp }
+  tunnels: {}       // "idA|idB" (sorted) -> relay peer id
 };
 
 module.exports = state;

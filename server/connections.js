@@ -79,5 +79,68 @@ function reshufflePeer(peer, peers, conns, limit, rng = Math.random) {
     conns[otherId].push(myId);
   }
 }
+// Find a relay for peers a and b: a public peer that BOTH are already connected to.
+// `conns` is state.connections, `peersById` maps id -> peer (needs behindNAT).
+// Returns the relay's id, or null if there is none.
+function findRelay(aId, bId, conns, peersById, rng = Math.random) {
+  const bList = conns[bId] || [];
+  const mutual = (conns[aId] || []).filter(
+    (id) => bList.includes(id) && peersById[id] && !peersById[id].behindNAT
+  );
+  if (mutual.length === 0) return null;
+  return mutual[Math.floor(rng() * mutual.length)];
+}
+// Stable key for a pair of peers, whichever order they come in.
+function tunnelKey(aId, bId) {
+  return [aId, bId].sort().join('|');
+}
 
-module.exports = { getCandidatePeers, scoreCandidate, rankCandidates, formConnections, reshufflePeer, canConnectDirectly };
+// Remove tunnels that no longer hold: an end dropped the link, or the relay
+// is no longer connected to both ends. Also removes the leftover link entries.
+function pruneTunnels(conns, tunnels) {
+  for (const key of Object.keys(tunnels)) {
+    const [a, b] = key.split('|');
+    const r = tunnels[key];
+    const A = conns[a] || [];
+    const B = conns[b] || [];
+    const ok = A.includes(b) && B.includes(a) && A.includes(r) && B.includes(r);
+    if (ok) continue;
+    delete tunnels[key];
+    if (conns[a]) conns[a] = conns[a].filter((id) => id !== b);
+    if (conns[b]) conns[b] = conns[b].filter((id) => id !== a);
+  }
+}
+
+// Fill free slots of NATd peers with relayed links to other NATd peers.
+// Both ends need a free slot, and a public peer must be connected to both.
+function formTunnels(peers, conns, tunnels, limit, rng = Math.random) {
+  const peersById = {};
+  for (const p of peers) {
+    const id = p._id.toString();
+    peersById[id] = p;
+    if (!conns[id]) conns[id] = [];
+  }
+  const natPeers = peers.filter((p) => p.behindNAT);
+
+  for (const peer of [...natPeers].sort(() => rng() - 0.5)) {
+    const myId = peer._id.toString();
+    if (conns[myId].length >= limit) continue;
+
+    const ranked = rankCandidates(peer, getCandidatePeers(peer, natPeers), natPeers.length, rng);
+    for (const other of ranked) {
+      if (conns[myId].length >= limit) break;
+      const otherId = other._id.toString();
+      if (conns[myId].includes(otherId)) continue;
+      if (conns[otherId].length >= limit) continue;
+
+      const relay = findRelay(myId, otherId, conns, peersById, rng);
+      if (!relay) continue;
+
+      conns[myId].push(otherId);
+      conns[otherId].push(myId);
+      tunnels[tunnelKey(myId, otherId)] = relay;
+    }
+  }
+}
+
+module.exports = { getCandidatePeers, scoreCandidate, rankCandidates, formConnections, reshufflePeer, canConnectDirectly, findRelay, tunnelKey, pruneTunnels, formTunnels };

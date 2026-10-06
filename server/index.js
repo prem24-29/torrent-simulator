@@ -13,7 +13,7 @@ const { Server } = require('socket.io');
 const state = require('./state');
 const { config, getUnchokeSlots } = require('./config');
 const { driftAll } = require('./bandwidth');
-const { formConnections } = require('./connections');
+const { formConnections, findRelay } = require('./connections');
 const { pickRandomUnchoked } = require('./choke');
 const { getReciprocity } = require('./reciprocity');
 
@@ -179,6 +179,11 @@ app.delete('/api/dev/clear-peers', async (req, res) => {
       delete state.optimistic[d._id.toString()];
     }
 
+    for (const k of Object.keys(state.tunnels)) {
+      const [x, y] = k.split('|');
+      if (doomed.some((d) => [x, y].includes(d._id.toString()))) delete state.tunnels[k];
+    }
+
     for (const id of Object.keys(state.peers)) {
       if (state.peers[id].fileId === fileId) delete state.peers[id];
     }
@@ -191,6 +196,7 @@ app.delete('/api/dev/clear-peers', async (req, res) => {
   for (const id of Object.keys(state.connections)) delete state.connections[id];
   for (const id of Object.keys(state.unchoked)) delete state.unchoked[id];
   for (const id of Object.keys(state.optimistic)) delete state.optimistic[id];
+  for (const k of Object.keys(state.tunnels)) delete state.tunnels[k];
   io.emit('swarm-update', { fileId: null });
   res.json({ message: 'All peers cleared across all files' });
 });
@@ -249,6 +255,24 @@ app.post('/api/dev/form-connections', async (req, res) => {
   const conns = formConnections(peers, config.connectionLimit);
   for (const id of Object.keys(conns)) state.connections[id] = conns[id];
   res.json({ connections: conns });
+});
+
+
+app.get('/api/dev/relay/:fileId', async (req, res) => {
+  const { a, b } = req.query; // peer labels
+  const peers = await Peer.find({ fileId: req.params.fileId });
+  const peerA = peers.find((p) => p.peerLabel === a);
+  const peerB = peers.find((p) => p.peerLabel === b);
+  if (!peerA || !peerB) return res.status(404).json({ error: 'peer not found' });
+
+  const peersById = {};
+  const labelById = {};
+  for (const p of peers) {
+    peersById[p._id.toString()] = p;
+    labelById[p._id.toString()] = p.peerLabel;
+  }
+  const relayId = findRelay(peerA._id.toString(), peerB._id.toString(), state.connections, peersById);
+  res.json({ relayId, relayLabel: relayId ? labelById[relayId] : null });
 });
 
 

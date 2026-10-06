@@ -155,3 +155,96 @@ test('reshuffle never links two NATd peers', () => {
   expect(conns['a']).not.toContain('b');
   expect(conns['b']).not.toContain('a');
 });
+
+const { findRelay } = require('./connections');
+
+const P = (nat) => ({ behindNAT: nat });
+
+test('relay is a public peer both are connected to', () => {
+  const conns = { a: ['r'], b: ['r'], r: ['a', 'b'] };
+  const byId = { a: P(true), b: P(true), r: P(false) };
+  expect(findRelay('a', 'b', conns, byId)).toBe('r');
+});
+
+test('no relay when there is no mutual connection', () => {
+  const conns = { a: ['r1'], b: ['r2'] };
+  const byId = { a: P(true), b: P(true), r1: P(false), r2: P(false) };
+  expect(findRelay('a', 'b', conns, byId)).toBe(null);
+});
+
+test('a NATd mutual connection cannot relay', () => {
+  const conns = { a: ['n'], b: ['n'] };
+  const byId = { a: P(true), b: P(true), n: P(true) };
+  expect(findRelay('a', 'b', conns, byId)).toBe(null);
+});
+
+test('relay uses the random source when several qualify', () => {
+  const conns = { a: ['r1', 'r2'], b: ['r1', 'r2'] };
+  const byId = { a: P(true), b: P(true), r1: P(false), r2: P(false) };
+  expect(findRelay('a', 'b', conns, byId, () => 0)).toBe('r1');
+  expect(findRelay('a', 'b', conns, byId, () => 0.99)).toBe('r2');
+});
+
+test('no relay when either peer has no connections', () => {
+  const byId = { a: P(true), b: P(true) };
+  expect(findRelay('a', 'b', {}, byId)).toBe(null);
+});
+
+const { tunnelKey, pruneTunnels, formTunnels } = require('./connections');
+
+test('tunnel key ignores order', () => {
+  expect(tunnelKey('a', 'b')).toBe(tunnelKey('b', 'a'));
+});
+
+test('two NATd peers get a tunnel through a shared public peer', () => {
+  const peers = [nat('a', '00'), nat('b', '11'), bits('r', '11')];
+  const conns = { a: ['r'], b: ['r'], r: ['a', 'b'] };
+  const tunnels = {};
+  formTunnels(peers, conns, tunnels, 8);
+  expect(conns['a']).toContain('b');
+  expect(conns['b']).toContain('a');
+  expect(tunnels['a|b']).toBe('r');
+  expect(conns['r']).toEqual(['a', 'b']); // the relay spends no extra slot
+});
+
+test('no tunnel without a mutual public peer', () => {
+  const peers = [nat('a', '00'), nat('b', '11'), bits('r', '11')];
+  const conns = { a: ['r'], b: [], r: ['a'] };
+  const tunnels = {};
+  formTunnels(peers, conns, tunnels, 8);
+  expect(conns['a']).not.toContain('b');
+  expect(tunnels).toEqual({});
+});
+
+test('no tunnel when the first peer is at the limit', () => {
+  const peers = [nat('a', '00'), nat('b', '11'), bits('r', '11'), bits('x', '11')];
+  const conns = { a: ['r', 'x'], b: ['r'], r: ['a', 'b'], x: ['a'] };
+  const tunnels = {};
+  formTunnels(peers, conns, tunnels, 2);
+  expect(tunnels).toEqual({});
+});
+
+test('no tunnel when the other peer is at the limit', () => {
+  const peers = [nat('a', '00'), nat('b', '11'), bits('r', '11'), bits('y', '11')];
+  const conns = { a: ['r'], b: ['r', 'y'], r: ['a', 'b'], y: ['b'] };
+  const tunnels = {};
+  formTunnels(peers, conns, tunnels, 2);
+  expect(tunnels).toEqual({});
+});
+
+test('prune keeps a tunnel that still holds', () => {
+  const conns = { a: ['r', 'b'], b: ['r', 'a'], r: ['a', 'b'] };
+  const tunnels = { 'a|b': 'r' };
+  pruneTunnels(conns, tunnels);
+  expect(tunnels['a|b']).toBe('r');
+  expect(conns['a']).toContain('b');
+});
+
+test('prune removes a tunnel whose relay link is gone, and the link entries', () => {
+  const conns = { a: ['b'], b: ['a'], r: [] };
+  const tunnels = { 'a|b': 'r' };
+  pruneTunnels(conns, tunnels);
+  expect(tunnels).toEqual({});
+  expect(conns['a']).toEqual([]);
+  expect(conns['b']).toEqual([]);
+});
