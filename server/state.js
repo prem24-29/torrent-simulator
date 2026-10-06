@@ -4,7 +4,8 @@ const state = {
   peers: {},        // peerId -> live data (capacity, byte budget, ...), added in layer B
   transfers: [],    // in-flight transfers, added in layer B
   connections: {},   // peerId -> list of connected peerIds, added in layer C
-  unchoked: {}
+  unchoked: {},
+  optimistic: {}    // peerId -> { target: peerId or null, nextAt: timestamp }
 };
 
 module.exports = state;

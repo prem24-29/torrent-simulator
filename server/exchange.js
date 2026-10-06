@@ -4,7 +4,7 @@ const TransferLog = require('./models/TransferLog');
 const { ensurePeerState } = require('./bandwidth');
 const state = require('./state');
 const { config, getUnchokeSlots } = require('./config');
-const { pickByLinkRate, pickByReciprocity } = require('./choke');
+const { pickByLinkRate, pickByReciprocity, pickOptimistic } = require('./choke');
 const { getReciprocity } = require('./reciprocity');
 const { formConnections, reshufflerPeer } = require('./connections');
 const TICK_SECONDS = 0.5; // must match the exchange interval in index.js (500ms)
@@ -114,6 +114,21 @@ async function runExchangeRound(fileId, io) {
     ps.nextReshuffleAt = now + 25000 * (0.8 + Math.random() * 0.4);
   }
 
+  // Optimistic slot: one extra random interested connection, rotated on a jittered timer
+  for (const peer of peers) {
+    const id = peer._id.toString();
+    const conns = (state.connections[id] || []).map((x) => byId[x]).filter(Boolean);
+    const o = state.optimistic[id];
+    const targetGone = o && o.target && !(state.connections[id] || []).includes(o.target);
+    if (o && now < o.nextAt && !targetGone) continue;
+
+    const target = pickOptimistic(peer, conns, state.unchoked[id] || []);
+    state.optimistic[id] = {
+      target: target ? target._id.toString() : null,
+      nextAt: now + config.optimisticIntervalMs * (0.8 + Math.random() * 0.4)
+    };
+  }
+
   // PHASE 1: advance in-flight transfers (iterate backwards so removing is safe)
   // Count how many transfers each sender is serving right now (fixed for this tick)
   const sendCount = {};
@@ -193,8 +208,14 @@ async function runExchangeRound(fileId, io) {
 
     // Only my connections can serve me
     const myConns = (state.connections[peerId] || []).map((id) => byId[id]).filter(Boolean);
-        // Of my connections, those that have unchoked me (the only ones that can serve me)
-    const servingMe = myConns.filter((c) => (state.unchoked[c._id.toString()] || []).includes(peerId));
+    // Of my connections, those that have unchoked me (the only ones that can serve me)
+
+    const servingMe = myConns.filter((c) => {
+      const cid = c._id.toString();
+      const opt = state.optimistic[cid];
+      return (state.unchoked[cid] || []).includes(peerId) || (opt && opt.target === peerId);
+    });
+    
     // Rarity as this peer sees it: only its own connections count
     const localFrequency = countPieceFrequency(myConns, file.pieceCount);
     

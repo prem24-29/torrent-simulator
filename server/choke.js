@@ -40,5 +40,13 @@ function pickByLinkRate(peer, conns, slots, caps, rng = Math.random) {
     .slice(0, slots)
     .map((x) => x.c);
 }
+// One random interested connection that isn't already in `excludeIds`, or null if none.
+function pickOptimistic(peer, conns, excludeIds, rng = Math.random) {
+  const pool = filterInterested(peer, conns).filter(
+    (c) => !excludeIds.includes(c._id.toString())
+  );
+  if (pool.length === 0) return null;
+  return pool[Math.floor(rng() * pool.length)];
+}
 
-module.exports = { isInterested, filterInterested, pickRandomUnchoked, pickByReciprocity, pickByLinkRate };
+module.exports = { isInterested, filterInterested, pickRandomUnchoked, pickByReciprocity, pickByLinkRate, pickOptimistic };

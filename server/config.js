@@ -8,7 +8,8 @@ const config = {
     slow:   { up: 50,  down: 200 },
     medium: { up: 150, down: 600 },
     fast:   { up: 400, down: 1600 }
-  }  
+  },
+  optimisticIntervalMs: 30000
 };
 
 // Derived unchoke slots, unless a manual value has been set.

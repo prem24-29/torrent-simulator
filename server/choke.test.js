@@ -1,4 +1,4 @@
-const { isInterested, filterInterested, pickRandomUnchoked, pickByReciprocity, pickByLinkRate } = require('./choke');
+const { isInterested, filterInterested, pickRandomUnchoked, pickByReciprocity, pickByLinkRate, pickOptimistic } = require('./choke');
 
 const named = (label, str) => ({ ...bits(label, str), peerLabel: label });
 
@@ -137,4 +137,37 @@ test('link rate respects the slot count', () => {
   const all = [bits('a', '00'), bits('b', '00'), bits('c', '00')];
   const caps = { s: { uploadCap: 400 }, a: { downloadCap: 1 }, b: { downloadCap: 2 }, c: { downloadCap: 3 } };
   expect(pickByLinkRate(seeder, all, 2, caps).length).toBe(2);
+});
+
+test('optimistic picks an interested connection', () => {
+  const me = bits('me', '11');
+  const a = bits('a', '00');
+  expect(pickOptimistic(me, [a], []).toString).toBeDefined();
+  expect(pickOptimistic(me, [a], [])._id.toString()).toBe('a');
+});
+
+test('optimistic skips connections already unchoked', () => {
+  const me = bits('me', '11');
+  const a = bits('a', '00');
+  const b = bits('b', '00');
+  expect(pickOptimistic(me, [a, b], ['a'])._id.toString()).toBe('b');
+});
+
+test('optimistic skips uninterested connections', () => {
+  const me = bits('me', '10');
+  const full = bits('full', '11');
+  expect(pickOptimistic(me, [full], [])).toBe(null);
+});
+
+test('optimistic returns null when nothing is left to pick', () => {
+  const me = bits('me', '11');
+  const a = bits('a', '00');
+  expect(pickOptimistic(me, [a], ['a'])).toBe(null);
+});
+
+test('optimistic uses the random source', () => {
+  const me = bits('me', '11');
+  const all = [bits('a', '00'), bits('b', '00')];
+  expect(pickOptimistic(me, all, [], () => 0.99)._id.toString()).toBe('b');
+  expect(pickOptimistic(me, all, [], () => 0)._id.toString()).toBe('a');
 });
