@@ -1,5 +1,5 @@
 const { getCandidatePeers } = require('./connections');
-const { formConnections } = require('./connections');
+const { formConnections, reshufflePeer } = require('./connections');
 const { scoreCandidate, rankCandidates } = require('./connections');
 
 const makePeer = (id) => ({ _id: { toString: () => id } });
@@ -108,4 +108,21 @@ test('peers with nothing to offer each other stay unconnected', () => {
   const conns = formConnections(peers, 8);
   expect(conns['a']).toEqual([]);
   expect(conns['b']).toEqual([]);
+});
+
+test('reshuffle keeps links symmetric and capped', () => {
+  const peers = [bits('a', '00'), bits('b', '10'), bits('c', '01'), bits('d', '11')];
+  const conns = formConnections(peers, 2);
+  reshufflePeer(peers[0], peers, conns, 2);
+  for (const id of Object.keys(conns)) {
+    expect(conns[id].length).toBeLessThanOrEqual(2);
+    for (const other of conns[id]) expect(conns[other]).toContain(id);
+  }
+});
+
+test('reshuffle never links a peer to itself', () => {
+  const peers = [bits('a', '00'), bits('b', '11')];
+  const conns = formConnections(peers, 8);
+  reshufflePeer(peers[0], peers, conns, 8);
+  expect(conns['a']).not.toContain('a');
 });

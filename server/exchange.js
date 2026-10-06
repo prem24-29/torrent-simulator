@@ -4,7 +4,7 @@ const TransferLog = require('./models/TransferLog');
 const { ensurePeerState } = require('./bandwidth');
 const state = require('./state');
 const { config } = require('./config');
-const { formConnections } = require('./connections');
+const { formConnections, reshufflerPeer } = require('./connections');
 const TICK_SECONDS = 0.5; // must match the exchange interval in index.js (500ms)
 
 function countPieceFrequency(peers, pieceCount) {
@@ -85,6 +85,15 @@ async function runExchangeRound(fileId, io) {
   if (peers.some((p) => state.connections[p._id.toString()] === undefined)) {
     const conns = formConnections(peers, config.connectionLimit);
     for (const id of Object.keys(conns)) state.connections[id] = conns[id];
+  }
+
+  // Jittered reshuffle: each peer re-picks on its own schedule
+  const now = Date.now();
+  for (const peer of peers) {
+    const ps = state.peers[peer._id.toString()];
+    if (now < ps.nextReshuffleAt) continue;
+    reshufflePeer(peer, peers, state.connections, config.connectionLimit);
+    ps.nextReshuffleAt = now + 25000 * (0.8 + Math.random() * 0.4);
   }
 
   // PHASE 1: advance in-flight transfers (iterate backwards so removing is safe)

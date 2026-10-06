@@ -24,7 +24,8 @@ function ensurePeerState(peer) {
     downloadCap: rates.down,
     position: 0,
     carryBytes: 0,
-    waitingForPiece: null
+    waitingForPiece: null,
+    nextReshuffleAt: Date.now() + 25000 * (0.8 + Math.random() * 0.4)
   };
   return state.peers[id];
 }

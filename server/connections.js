@@ -50,4 +50,25 @@ function formConnections(peers, limit, rng = Math.random) {
   return conns;
 }
 
-module.exports = { getCandidatePeers, scoreCandidate, rankCandidates, formConnections };
+// Re-pick one peer's connections in place. Same hard cap on both sides.
+function reshufflePeer(peer, peers, conns, limit, rng = Math.random) {
+  const myId = peer._id.toString();
+
+  // Drop my old links in both directions
+  for (const otherId of conns[myId] || []) {
+    if (conns[otherId]) conns[otherId] = conns[otherId].filter((id) => id !== myId);
+  }
+  conns[myId] = [];
+
+  const ranked = rankCandidates(peer, getCandidatePeers(peer, peers), peers.length, rng);
+  for (const other of ranked) {
+    if (conns[myId].length >= limit) break;
+    const otherId = other._id.toString();
+    if (!conns[otherId]) conns[otherId] = [];
+    if (conns[otherId].length >= limit) continue;
+    conns[myId].push(otherId);
+    conns[otherId].push(myId);
+  }
+}
+
+module.exports = { getCandidatePeers, scoreCandidate, rankCandidates, formConnections, reshufflePeer };
