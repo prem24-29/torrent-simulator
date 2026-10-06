@@ -1,12 +1,12 @@
 const Peer = require('./models/Peer');
 const File = require('./models/File');
 const TransferLog = require('./models/TransferLog');
-const { ensurePeerState } = require('./bandwidth');
+const { ensurePeerState, linkRate } = require('./bandwidth');
 const state = require('./state');
 const { config, getUnchokeSlots } = require('./config');
 const { pickByReciprocity, pickByLinkRate, pickOptimistic, isServing } = require('./choke');
 const { getReciprocity } = require('./reciprocity');
-const { formConnections, reshufflePeer, pruneTunnels, formTunnels } = require('./connections');
+const { formConnections, reshufflePeer, pruneTunnels, formTunnels, tunnelKey } = require('./connections');
 const TICK_SECONDS = 0.5; // must match the exchange interval in index.js (500ms)
 
 function countPieceFrequency(peers, pieceCount) {
@@ -142,8 +142,11 @@ async function runExchangeRound(fileId, io) {
   let dropped = 0;
   for (let i = state.transfers.length - 1; i >= 0; i--) {
     const t = state.transfers[i];
-    if (t.fileId !== fid) continue;
-    if (!isServing(t.fromId, t.toId, state.unchoked, state.optimistic)) {
+    const s = byId[t.fromId];
+    const r = byId[t.toId];
+    const tunneled = !!state.tunnels[tunnelKey(t.fromId, t.toId)];
+    const natBlocked = s && r && s.behindNAT && r.behindNAT && !tunneled;
+    if (natBlocked || !isServing(t.fromId, t.toId, state.unchoked, state.optimistic)) {
       state.transfers.splice(i, 1);
       dropped++;
     }
@@ -163,6 +166,17 @@ async function runExchangeRound(fileId, io) {
     recvCount[t.toId] = (recvCount[t.toId] || 0) + 1;
   }
 
+  
+    // Which relay (if any) carries a transfer, and how many tunnel transfers each relay carries
+  const relayOf = (t) => state.tunnels[tunnelKey(t.fromId, t.toId)];
+  const relayCount = {};
+  for (const t of state.transfers) {
+    if (t.fileId !== fid) continue;
+    const r = relayOf(t);
+    if (r) relayCount[r] = (relayCount[r] || 0) + 1;
+  }
+
+
   for (let i = state.transfers.length - 1; i >= 0; i--) {
     const t = state.transfers[i];
     if (t.fileId !== fid) continue;
@@ -177,10 +191,20 @@ async function runExchangeRound(fileId, io) {
     }
 
     // Sender's upload is shared evenly; the slower end still limits the link
-    const uploadShare = state.peers[t.fromId].uploadCap / sendCount[t.fromId];
-    const downloadShare = state.peers[t.toId].downloadCap / recvCount[t.toId];
-    const rate = Math.min(uploadShare, downloadShare);
-    console.log(`${state.peers[t.fromId].peerLabel} -> ${state.peers[t.toId].peerLabel}: ${rate.toFixed(1)} KB/s (${sendCount[t.fromId]} active)`);
+    // Every peer's pools include the tunnel traffic it carries as a relay
+    const upPool = (id) => (sendCount[id] || 0) + (relayCount[id] || 0);
+    const downPool = (id) => (recvCount[id] || 0) + (relayCount[id] || 0);
+
+    const points = [
+      { cap: state.peers[t.fromId].uploadCap, pool: upPool(t.fromId) },
+      { cap: state.peers[t.toId].downloadCap, pool: downPool(t.toId) }
+    ];
+    const relayId = relayOf(t);
+    if (relayId && state.peers[relayId]) {
+      points.push({ cap: state.peers[relayId].uploadCap, pool: upPool(relayId) });
+      points.push({ cap: state.peers[relayId].downloadCap, pool: downPool(relayId) });
+    }
+    const rate = linkRate(points);
     t.bytesDone += rate * 1024 * TICK_SECONDS;
 
     if (t.bytesDone < file.pieceSize) continue;

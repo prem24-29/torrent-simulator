@@ -48,4 +48,10 @@ function driftAll() {
   for (const id of Object.keys(state.peers)) driftPeer(state.peers[id]);
 }
 
-module.exports = { ensurePeerState, driftAll };
+// Link rate (KB/s) = the slowest share along the path.
+// Each point is { cap, pool }: a capacity and how many transfers share it.
+function linkRate(points) {
+  return Math.min(...points.map((p) => p.cap / p.pool));
+}
+
+module.exports = { ensurePeerState, driftAll, linkRate };
