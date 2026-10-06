@@ -135,7 +135,6 @@ async function runExchangeRound(fileId, io) {
   }
 
   // PHASE 2: fill each peer's download slots, never picking a piece already in flight
-  const frequency = countPieceFrequency(peers, file.pieceCount);
 
   // Per receiver: how many transfers it has, and which pieces are reserved
   const incoming = {};
@@ -153,6 +152,8 @@ async function runExchangeRound(fileId, io) {
 
     // Only my connections can serve me
     const myConns = (state.connections[peerId] || []).map((id) => byId[id]).filter(Boolean);
+        // Rarity as this peer sees it: only its own connections count
+    const localFrequency = countPieceFrequency(myConns, file.pieceCount);
 
     while ((incoming[peerId] || 0) < config.maxConcurrentDownloads) {
       // Pieces I lack, haven't reserved, and at least one connection holds
@@ -162,7 +163,7 @@ async function runExchangeRound(fileId, io) {
       }
       if (wanted.length === 0) break;
 
-      const pieceIndex = pickRarestPiece(wanted, frequency);
+      const pieceIndex = pickRarestPiece(wanted, localFrequency);
 
       const candidates = myConns.filter((c) => c.bitfield[pieceIndex]);
       const source = candidates[Math.floor(Math.random() * candidates.length)];
@@ -182,4 +183,4 @@ async function runExchangeRound(fileId, io) {
   }
 }
 
-module.exports = { runExchangeRound };
+module.exports = { runExchangeRound, countPieceFrequency, pickRarestPiece };
