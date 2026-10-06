@@ -171,3 +171,21 @@ test('optimistic uses the random source', () => {
   expect(pickOptimistic(me, all, [], () => 0.99)._id.toString()).toBe('b');
   expect(pickOptimistic(me, all, [], () => 0)._id.toString()).toBe('a');
 });
+
+const { isServing } = require('./choke');
+
+test('serving when the receiver is in the unchoke set', () => {
+  expect(isServing('s', 'r', { s: ['r'] }, {})).toBe(true);
+});
+
+test('serving when the receiver is the optimistic target', () => {
+  expect(isServing('s', 'r', { s: [] }, { s: { target: 'r' } })).toBe(true);
+});
+
+test('not serving when the receiver is in neither', () => {
+  expect(isServing('s', 'r', { s: ['x'] }, { s: { target: 'y' } })).toBe(false);
+});
+
+test('not serving when the sender has no entries at all', () => {
+  expect(isServing('s', 'r', {}, {})).toBe(false);
+});

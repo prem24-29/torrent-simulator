@@ -48,5 +48,13 @@ function pickOptimistic(peer, conns, excludeIds, rng = Math.random) {
   if (pool.length === 0) return null;
   return pool[Math.floor(rng() * pool.length)];
 }
+// Is `senderId` currently serving `receiverId`? True if the receiver holds one of
+// the sender's regular unchoke slots, or is the sender's optimistic target.
+// `unchoked` is state.unchoked, `optimistic` is state.optimistic.
+function isServing(senderId, receiverId, unchoked, optimistic) {
+  if ((unchoked[senderId] || []).includes(receiverId)) return true;
+  const opt = optimistic[senderId];
+  return !!(opt && opt.target === receiverId);
+}
 
-module.exports = { isInterested, filterInterested, pickRandomUnchoked, pickByReciprocity, pickByLinkRate, pickOptimistic };
+module.exports = { isInterested, filterInterested, pickRandomUnchoked, pickByReciprocity, pickByLinkRate, pickOptimistic, isServing };

@@ -4,7 +4,7 @@ const TransferLog = require('./models/TransferLog');
 const { ensurePeerState } = require('./bandwidth');
 const state = require('./state');
 const { config, getUnchokeSlots } = require('./config');
-const { pickByLinkRate, pickByReciprocity, pickOptimistic } = require('./choke');
+const { pickByReciprocity, pickByLinkRate, pickOptimistic, isServing } = require('./choke');
 const { getReciprocity } = require('./reciprocity');
 const { formConnections, reshufflerPeer } = require('./connections');
 const TICK_SECONDS = 0.5; // must match the exchange interval in index.js (500ms)
@@ -131,6 +131,20 @@ async function runExchangeRound(fileId, io) {
 
   // PHASE 1: advance in-flight transfers (iterate backwards so removing is safe)
   // Count how many transfers each sender is serving right now (fixed for this tick)
+  
+  // Choke check: drop transfers whose sender no longer serves the receiver.
+  // Partial progress (bytesDone) is discarded with the transfer.
+  let dropped = 0;
+  for (let i = state.transfers.length - 1; i >= 0; i--) {
+    const t = state.transfers[i];
+    if (t.fileId !== fid) continue;
+    if (!isServing(t.fromId, t.toId, state.unchoked, state.optimistic)) {
+      state.transfers.splice(i, 1);
+      dropped++;
+    }
+  }
+  if (dropped > 0) console.log(`choked: dropped ${dropped} in-flight transfer(s)`);
+  
   const sendCount = {};
   for (const t of state.transfers) {
     if (t.fileId !== fid) continue;
@@ -215,7 +229,7 @@ async function runExchangeRound(fileId, io) {
       const opt = state.optimistic[cid];
       return (state.unchoked[cid] || []).includes(peerId) || (opt && opt.target === peerId);
     });
-    
+
     // Rarity as this peer sees it: only its own connections count
     const localFrequency = countPieceFrequency(myConns, file.pieceCount);
     
