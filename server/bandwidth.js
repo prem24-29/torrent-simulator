@@ -23,7 +23,8 @@ function ensurePeerState(peer) {
     uploadCap: rates.up,
     downloadCap: rates.down,
     position: 0,
-    carryBytes: 0
+    carryBytes: 0,
+    waitingForPiece: null
   };
   return state.peers[id];
 }

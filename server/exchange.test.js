@@ -1,4 +1,4 @@
-const { countPieceFrequency, pickRarestPiece } = require('./exchange');
+const { countPieceFrequency, pickRarestPiece, findWaitingPiece } = require('./exchange');
 
 const peerWith = (str) => ({ bitfield: str.split('').map((c) => c === '1') });
 
@@ -30,4 +30,20 @@ test('local view can disagree with the swarm view', () => {
   expect(pickRarestPiece([0, 1], swarmFreq)).toBe(1);
   expect(pickRarestPiece([0, 1], localFreq)).toBe(1); // 0 holders locally
   expect(localFreq[1]).toBe(0);
+});
+
+test('not waiting when a connection holds a piece I miss', () => {
+  expect(findWaitingPiece(peerWith('10'), [peerWith('01')], 2)).toBe(null);
+});
+
+test('waiting when no connection holds anything I miss', () => {
+  expect(findWaitingPiece(peerWith('10'), [peerWith('10')], 2)).toBe(1);
+});
+
+test('waiting when I have no connections at all', () => {
+  expect(findWaitingPiece(peerWith('00'), [], 2)).toBe(0);
+});
+
+test('not waiting once I have every piece', () => {
+  expect(findWaitingPiece(peerWith('11'), [], 2)).toBe(null);
 });

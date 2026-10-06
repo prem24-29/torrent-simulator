@@ -54,6 +54,20 @@ function emitSwarmUpdate(io, fid) {
   }
 }
 
+
+// The piece a peer is stuck waiting for, or null if it isn't waiting.
+// Waiting = still missing pieces, but no connection holds any of them.
+function findWaitingPiece(peer, myConns, pieceCount) {
+  const missing = [];
+  for (let i = 0; i < pieceCount; i++) {
+    if (!peer.bitfield[i]) missing.push(i);
+  }
+  if (missing.length === 0) return null;
+  if (missing.some((i) => myConns.some((c) => c.bitfield[i]))) return null;
+  return pickRarestPiece(missing, countPieceFrequency(myConns, pieceCount));
+}
+
+
 async function runExchangeRound(fileId, io) {
   const file = await File.findById(fileId);
   if (!file) return;
@@ -154,7 +168,7 @@ async function runExchangeRound(fileId, io) {
     const myConns = (state.connections[peerId] || []).map((id) => byId[id]).filter(Boolean);
         // Rarity as this peer sees it: only its own connections count
     const localFrequency = countPieceFrequency(myConns, file.pieceCount);
-
+    state.peers[peerId].waitingForPiece = findWaitingPiece(peer, myConns, file.pieceCount);
     while ((incoming[peerId] || 0) < config.maxConcurrentDownloads) {
       // Pieces I lack, haven't reserved, and at least one connection holds
       const wanted = [];
@@ -183,4 +197,4 @@ async function runExchangeRound(fileId, io) {
   }
 }
 
-module.exports = { runExchangeRound, countPieceFrequency, pickRarestPiece };
+module.exports = { runExchangeRound, countPieceFrequency, pickRarestPiece, findWaitingPiece };
