@@ -16,6 +16,7 @@ const { driftAll } = require('./bandwidth');
 const { formConnections, findRelay } = require('./connections');
 const { pickRandomUnchoked } = require('./choke');
 const { getReciprocity } = require('./reciprocity');
+const { buildLiveState } = require('./live');
 
 const app = express();
 app.use(cors());
@@ -134,6 +135,12 @@ app.get('/api/tracker/:fileId/peers', async (req, res) => {
     res.json({ peers });
 })
 
+app.get('/api/live/:fileId', async (req, res) => {
+  const file = await File.findById(req.params.fileId);
+  if (!file) return res.status(404).json({ error: 'File not found' });
+  const peers = await Peer.find({ fileId: req.params.fileId });
+  res.json(buildLiveState(file, peers, state, config, getUnchokeSlots(), simulationRunning));
+});
 
 app.post('/api/dev/seed-peers', async (req, res) => {
   const { fileId, count } = req.body;
