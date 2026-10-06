@@ -89,22 +89,6 @@ async function runExchangeRound(fileId, io) {
     for (const id of Object.keys(conns)) state.connections[id] = conns[id];
   }
 
-
-  // Temporary bootstrap (D8 replaces with a timer): peers with no unchoke set get one
-  for (const peer of peers) {
-    const id = peer._id.toString();
-    if (state.unchoked[id] !== undefined) continue;
-    const conns = (state.connections[id] || []).map((x) => byId[x]).filter(Boolean);
-    const isSeeder = peer.bitfield.every(Boolean);
-    const scores = isSeeder ? {} : await getReciprocity(fileId, peer.peerLabel, file.pieceSize);
-    const picked = isSeeder
-      ? pickByLinkRate(peer, conns, getUnchokeSlots(), state.peers)
-      : pickByReciprocity(peer, conns, getUnchokeSlots(), scores);
-    state.unchoked[id] = picked.map((p) => p._id.toString());
-    state.unchoked[id] = picked.map((p) => p._id.toString());
-  }
-
-
   // Jittered reshuffle: each peer re-picks on its own schedule
   const now = Date.now();
   for (const peer of peers) {
@@ -113,6 +97,24 @@ async function runExchangeRound(fileId, io) {
     reshufflePeer(peer, peers, state.connections, config.connectionLimit);
     ps.nextReshuffleAt = now + 25000 * (0.8 + Math.random() * 0.4);
   }
+
+
+    // Re-choke: each peer re-picks its unchoke set every chokeIntervalMs
+  for (const peer of peers) {
+    const id = peer._id.toString();
+    const ps = state.peers[id];
+    if (state.unchoked[id] !== undefined && now < ps.nextChokeAt) continue;
+
+    const conns = (state.connections[id] || []).map((x) => byId[x]).filter(Boolean);
+    const isSeeder = peer.bitfield.every(Boolean);
+    const scores = isSeeder ? {} : await getReciprocity(fileId, peer.peerLabel, file.pieceSize);
+    const picked = isSeeder
+      ? pickByLinkRate(peer, conns, getUnchokeSlots(), state.peers)
+      : pickByReciprocity(peer, conns, getUnchokeSlots(), scores);
+    state.unchoked[id] = picked.map((p) => p._id.toString());
+    ps.nextChokeAt = now + config.chokeIntervalMs;
+  }
+
 
   // Optimistic slot: one extra random interested connection, rotated on a jittered timer
   for (const peer of peers) {
