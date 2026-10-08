@@ -137,6 +137,10 @@ async function runExchangeRound(fileId, io) {
   // PHASE 1: advance in-flight transfers (iterate backwards so removing is safe)
   // Count how many transfers each sender is serving right now (fixed for this tick)
   
+  // Completions are collected here and written to MongoDB once, at the end of PHASE 1
+  const changedPeers = new Map(); // peerId -> peer document (updated in memory)
+  const logRows = [];
+
   // Choke check: drop transfers whose sender no longer serves the receiver.
   // Partial progress (bytesDone) is discarded with the transfer.
   let dropped = 0;
@@ -219,18 +223,36 @@ async function runExchangeRound(fileId, io) {
     const leftover = t.bytesDone - file.pieceSize;
     state.peers[t.toId].carryBytes = Math.min(leftover, file.pieceSize);
 
-    await receiver.save();
-    await sender.save();
-
-    await TransferLog.create({
+    changedPeers.set(t.toId, receiver);
+    changedPeers.set(t.fromId, sender);
+    logRows.push({
       fileId,
       pieceIndex: t.pieceIndex,
       fromPeerLabel: sender.peerLabel,
-      toPeerLabel: receiver.peerLabel
+      toPeerLabel: receiver.peerLabel,
+      timestamp: new Date()
     });
+  }
 
+  // One write for all changed peers, one for all log rows
+  if (logRows.length > 0) {
+    await Peer.bulkWrite(
+      [...changedPeers.values()].map((p) => ({
+        updateOne: {
+          filter: { _id: p._id },
+          update: {
+            $set: {
+              bitfield: Array.from(p.bitfield),
+              downloadedBytes: p.downloadedBytes,
+              uploadedBytes: p.uploadedBytes
+            }
+          }
+        }
+      }))
+    );
+    await TransferLog.insertMany(logRows);
     emitSwarmUpdate(io, fid);
-    console.log(`${receiver.peerLabel} received piece ${t.pieceIndex} from ${sender.peerLabel}`);
+    console.log(`completed ${logRows.length} piece(s)`);
   }
 
   // PHASE 2: fill each peer's download slots, never picking a piece already in flight

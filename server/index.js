@@ -362,12 +362,14 @@ setInterval(async () => {
   if (roundInProgress) return;
 
   roundInProgress = true;
+  const t0 = Date.now();
   try {
     const fileIds = await Peer.distinct('fileId');
     for (const fileId of fileIds) {
       await runExchangeRound(fileId, io);
     }
   } finally {
+    console.log(`round took ${Date.now() - t0} ms`);
     roundInProgress = false;
   }
 }, 500);
