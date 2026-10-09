@@ -410,3 +410,55 @@ app.get('/api/dev/reciprocity/:fileId/:peerLabel', async (req, res) => {
   const result = await getReciprocity(req.params.fileId, req.params.peerLabel, file.pieceSize, windowMs);
   res.json({ windowMs, bytesReceivedFrom: result });
 });
+
+app.post('/api/dev/scenario', async (req, res) => {
+  const { fileId, groups } = req.body || {};
+  const file = await File.findById(fileId);
+  if (!file) return res.status(404).json({ error: 'File not found' });
+  if (!Array.isArray(groups)) return res.status(400).json({ error: 'groups must be an array' });
+
+  const fid = String(fileId);
+
+  // Clear this file's peers and their live state (same cleanup as clear-peers)
+  const doomed = await Peer.find({ fileId }, '_id');
+  await Peer.deleteMany({ fileId });
+  const ids = new Set(doomed.map((d) => d._id.toString()));
+
+  for (const id of ids) {
+    delete state.connections[id];
+    delete state.unchoked[id];
+    delete state.optimistic[id];
+    delete state.peers[id];
+  }
+
+  for (const k of Object.keys(state.tunnels)) {
+    if (k.split('|').some((x) => ids.has(x))) delete state.tunnels[k];
+  }
+
+  // Strict: remove this file's transfers in place, so every file keeps the same array
+  for (let i = state.transfers.length - 1; i >= 0; i--) {
+    if (state.transfers[i].fileId === fid) state.transfers.splice(i, 1);
+  }
+
+  await TransferLog.deleteMany({ fileId });
+
+  // Build the new peers
+  const created = [];
+  for (const g of groups) {
+    const count = g.count || 1;
+    for (let i = 0; i < count; i++) {
+      const full = g.role === 'seeder';
+      const peer = await Peer.create({
+        fileId,
+        peerLabel: count === 1 ? g.label : `${g.label}${i + 1}`,
+        tier: TIERS.includes(g.tier) ? g.tier : randomTier(),
+        behindNAT: typeof g.behindNAT === 'boolean' ? g.behindNAT : false,
+        bitfield: new Array(file.pieceCount).fill(full)
+      });
+      created.push({ label: peer.peerLabel, tier: peer.tier, behindNAT: peer.behindNAT, role: g.role });
+    }
+  }
+
+  io.emit('swarm-update', { fileId: fid });
+  res.json({ created });
+});

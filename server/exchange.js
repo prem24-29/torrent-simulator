@@ -102,6 +102,14 @@ async function runExchangeRound(fileId, io) {
   pruneTunnels(state.connections, state.tunnels);
   formTunnels(peers, state.connections, state.tunnels, config.connectionLimit);
 
+  // Drop unchoke entries whose link no longer exists
+  for (const peer of peers) {
+    const id = peer._id.toString();
+    if (!state.unchoked[id]) continue;
+    const mine = state.connections[id] || [];
+    state.unchoked[id] = state.unchoked[id].filter((x) => mine.includes(x));
+  }
+
     // Re-choke: each peer re-picks its unchoke set every chokeIntervalMs
   for (const peer of peers) {
     const id = peer._id.toString();
