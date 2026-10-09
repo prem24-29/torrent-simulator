@@ -96,6 +96,7 @@ function buildLiveState(file, peers, state, config, unchokeSlots, running) {
       unchokeSlots,
       chokeIntervalMs: config.chokeIntervalMs,
       optimisticIntervalMs: config.optimisticIntervalMs,
+      reshuffleIntervalMs: config.reshuffleIntervalMs,
       maxConcurrentDownloads: config.maxConcurrentDownloads,
       tiers: config.tiers
     },

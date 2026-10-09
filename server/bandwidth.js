@@ -25,7 +25,7 @@ function ensurePeerState(peer) {
     position: 0,
     carryBytes: 0,
     waitingForPiece: null,
-    nextReshuffleAt: Date.now() + 25000 * (0.8 + Math.random() * 0.4),
+        nextReshuffleAt: Date.now() + config.reshuffleIntervalMs * (0.8 + Math.random() * 0.4),
     nextChokeAt: 0
   };
   return state.peers[id];

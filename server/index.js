@@ -43,6 +43,40 @@ function randomBehindNAT() {
   return Math.random() < NAT_PROBABILITY;
 }
 
+// Remove all peers of a file, their logs, and every piece of live state for them.
+async function wipePeersOfFile(fileId) {
+  const fid = String(fileId);
+  const doomed = await Peer.find({ fileId }, '_id');
+  await Peer.deleteMany({ fileId });
+  const ids = new Set(doomed.map((d) => d._id.toString()));
+
+  for (const id of ids) {
+    delete state.peers[id];
+    delete state.connections[id];
+    delete state.unchoked[id];
+    delete state.optimistic[id];
+  }
+  for (const k of Object.keys(state.tunnels)) {
+    if (k.split('|').some((x) => ids.has(x))) delete state.tunnels[k];
+  }
+  for (let i = state.transfers.length - 1; i >= 0; i--) {
+    if (state.transfers[i].fileId === fid) state.transfers.splice(i, 1);
+  }
+  await TransferLog.deleteMany({ fileId });
+  return ids.size;
+}
+
+app.delete('/api/files/:fileId', async (req, res) => {
+  const file = await File.findById(req.params.fileId);
+  if (!file) return res.status(404).json({ error: 'File not found' });
+
+  const peersRemoved = await wipePeersOfFile(file._id);
+  await File.deleteOne({ _id: file._id });
+
+  io.emit('swarm-update', { fileId: String(file._id) });
+  res.json({ message: `File "${file.originalName}" removed`, peersRemoved });
+});
+
 mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('Connected to MongoDB'))
     .catch((err) => console.error('MongoDB connection error:', err));
@@ -289,7 +323,9 @@ app.get('/api/config', (req, res) => {
     unchokeSlots: getUnchokeSlots(),
     unchokeSlotsIsOverridden: config.unchokeSlotsOverride !== null,
     chokeIntervalMs: config.chokeIntervalMs,
-    maxConcurrentDownloads: config.maxConcurrentDownloads
+    maxConcurrentDownloads: config.maxConcurrentDownloads,
+    reshuffleIntervalMs: config.reshuffleIntervalMs,
+    optimisticIntervalMs: config.optimisticIntervalMs
   });
 });
 
@@ -461,4 +497,22 @@ app.post('/api/dev/scenario', async (req, res) => {
 
   io.emit('swarm-update', { fileId: fid });
   res.json({ created });
+});
+
+app.post('/api/config/reshuffle-interval', (req, res) => {
+  const { value } = req.body || {};
+  if (!isPositiveInt(value) || value < 1000) {
+    return res.status(400).json({ error: 'value must be a whole number of milliseconds, 1000 or more' });
+  }
+  config.reshuffleIntervalMs = value;
+  res.json({ reshuffleIntervalMs: config.reshuffleIntervalMs });
+});
+
+app.post('/api/config/optimistic-interval', (req, res) => {
+  const { value } = req.body || {};
+  if (!isPositiveInt(value) || value < 1000) {
+    return res.status(400).json({ error: 'value must be a whole number of milliseconds, 1000 or more' });
+  }
+  config.optimisticIntervalMs = value;
+  res.json({ optimisticIntervalMs: config.optimisticIntervalMs });
 });

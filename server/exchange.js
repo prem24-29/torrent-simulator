@@ -95,7 +95,7 @@ async function runExchangeRound(fileId, io) {
     const ps = state.peers[peer._id.toString()];
     if (now < ps.nextReshuffleAt) continue;
     reshufflePeer(peer, peers, state.connections, config.connectionLimit);
-    ps.nextReshuffleAt = now + 25000 * (0.8 + Math.random() * 0.4);
+        ps.nextReshuffleAt = now + config.reshuffleIntervalMs * (0.8 + Math.random() * 0.4);
   }
 
   // Tunnels: drop broken ones, then fill free slots of NATd peers with relayed links
