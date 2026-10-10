@@ -10,17 +10,19 @@ function TunnelsPanel({ tunnels }) {
   return (
     <div className="tunnels-panel card">
       <div className="tunnels-title">Tunnels</div>
-      {tunnels && tunnels.length > 0 ? (
-        tunnels.map((t, i) => (
-          // Key on index is fine here because tunnel list is small
-          // and tunnels don't have a stable unique id.
-          <div className="tunnel-line" key={i}>
-            {t.aLabel} ⇄ {t.bLabel} via {t.relayLabel}
-          </div>
-        ))
-      ) : (
-        <div className="tunnels-empty">No tunnels right now.</div>
-      )}
+      {/* tunnels-body has a fixed height and internal scroll so this panel
+          never changes size regardless of how many tunnels exist */}
+      <div className="tunnels-body">
+        {tunnels && tunnels.length > 0 ? (
+          tunnels.map((t, i) => (
+            <div className="tunnel-line" key={i}>
+              {t.aLabel} ⇄ {t.bLabel} via {t.relayLabel}
+            </div>
+          ))
+        ) : (
+          <div className="tunnels-empty">No tunnels right now.</div>
+        )}
+      </div>
     </div>
   );
 }

@@ -7,8 +7,9 @@
    - Shows the peer label as small centred text (z-index above fill).
    - On hover: calls onHover with the peer + mouse position.
    - On click: calls onSelect with the peer id.
-   - `highlighted` = true when this peer is in the hovered peer's connections.
-   - `selected`    = true when this peer is the clicked (detail-view) peer.
+   - `highlighted`     = true when this peer is in the hovered peer's connections.
+   - `selected`        = true when this peer is the clicked (detail-view) peer.
+   - `explainHighlight`= true when this peer is named in the selected explain event.
    ============================================================ */
 import React from 'react';
 
@@ -20,15 +21,17 @@ function fillColor(peer) {
   return 'var(--pink)';
 }
 
-function PeerTile({ peer, highlighted, selected, onHover, onLeave, onSelect }) {
+function PeerTile({ peer, highlighted, selected, explainHighlight, onHover, onLeave, onSelect }) {
   function handleMouseMove(e) {
     // Pass the peer data plus cursor position so the hover card can position itself
     onHover(peer, { x: e.clientX, y: e.clientY });
   }
 
   let className = 'peer-tile';
-  if (highlighted) className += ' highlighted';
-  if (selected)    className += ' selected';
+  if (highlighted)     className += ' highlighted';
+  if (selected)        className += ' selected';
+  // explain-highlight can stack on top of highlighted — they look the same
+  if (explainHighlight) className += ' explain-highlight';
 
   return (
     <div

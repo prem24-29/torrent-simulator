@@ -235,6 +235,14 @@ button {
   font-style: italic;
 }
 
+/* Fixed height: about 3 lines (1.4em each + padding). Internal scroll
+   keeps the panel the same size whether there are 0 or 20 tunnels. */
+.tunnels-body {
+  max-height: 4.5em;
+  overflow-y: auto;
+  line-height: 1.5;
+}
+
 /* ============================================================
    PEER GRID
    ============================================================ */
@@ -302,6 +310,13 @@ button {
 .peer-tile.selected {
   border-color: var(--gold);
   box-shadow: 0 0 0 3px var(--gold);
+}
+
+/* Explanation-mode highlight — peers named in the selected explain event.
+   Same visual as .highlighted but not hover-driven, always shown. */
+.peer-tile.explain-highlight {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent);
 }
 
 /* Hover tooltip card */
@@ -719,3 +734,178 @@ input:focus, select:focus {
 .mt-12 { margin-top: 12px; }
 .bold { font-weight: 700; }
 .muted { color: var(--text-muted); }
+
+/* ============================================================
+   EXPLANATION MODE TOGGLE BUTTON (in header)
+   ============================================================ */
+/* Active state: filled purple; inactive: outlined like other header-btns */
+.header-btn.explain-active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.header-btn.explain-active:hover {
+  background: #6b00a8;
+  border-color: #6b00a8;
+}
+
+/* ============================================================
+   EXPLAIN PICKER STRIP
+   Shown directly under the header when Explanation mode is ON.
+   Fixed height so the layout never shifts as items check/uncheck.
+   ============================================================ */
+.explain-strip {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  margin-bottom: 12px;
+  /* Two action buttons on the left; event types wrap into at most 2 rows */
+}
+.explain-strip-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.explain-strip-grid {
+  /* Wrap type items into rows; min width keeps ~3-4 per row on wide screens */
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+}
+.explain-type-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 200px;
+  max-width: 280px;
+}
+.explain-type-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.explain-type-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.explain-pin-btn {
+  font-size: 0.7rem;
+  padding: 2px 7px;
+  border-radius: 5px;
+  border: 1.5px solid var(--idle);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color var(--transition), color var(--transition), background var(--transition);
+  white-space: nowrap;
+}
+.explain-pin-btn.pinned {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(138,0,212,0.08);
+}
+.explain-pin-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.explain-syllabus {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+.explain-noisy-note {
+  font-size: 0.7rem;
+  color: var(--warn);
+  font-style: italic;
+}
+.explain-strip-error {
+  font-size: 0.75rem;
+  color: var(--warn);
+  margin-top: 6px;
+}
+
+/* ============================================================
+   EXPLAIN PAUSED PANEL
+   Fixed to bottom of viewport. Does NOT affect page flow —
+   we add padding-bottom to .page when it is visible instead.
+   ============================================================ */
+.explain-paused-panel {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 1500px;  /* same as .page max-width */
+  max-height: 35vh;
+  background: #fff;
+  border-top: 3px solid var(--accent);
+  border-radius: var(--radius) var(--radius) 0 0;
+  box-shadow: 0 -4px 30px rgba(0,0,0,0.14);
+  overflow-y: auto;
+  z-index: 300;
+  padding: 14px 20px 16px;
+  box-sizing: border-box;
+}
+.explain-paused-title {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--accent);
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+.explain-paused-syllabus {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.explain-paused-message {
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+.explain-events-title {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.explain-event-row {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  border: 1.5px solid transparent;
+  margin-bottom: 3px;
+  transition: background var(--transition);
+}
+.explain-event-row:hover {
+  background: rgba(138,0,212,0.05);
+}
+.explain-event-row.active-event {
+  border-color: var(--accent);
+  background: rgba(138,0,212,0.06);
+}
+.explain-event-type-tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.explain-paused-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--idle);
+}

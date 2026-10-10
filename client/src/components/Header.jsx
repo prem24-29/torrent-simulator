@@ -5,6 +5,7 @@
    - File switcher (prev/next, "X of Y", file name, upload time)
    - Delete-file button → triggers confirmation dialog in App.jsx
    - Play/pause toggle (reads running state from live response)
+   - Explanation mode toggle (filled purple when ON)
    - Settings, Upload file, Build swarm, Add peer buttons
 
    All heavy action logic (delete sequence, dialog open/close)
@@ -24,17 +25,19 @@ function formatUploadTime(isoString) {
 }
 
 function Header({
-  files,          // array of all file objects
-  fileIndex,      // current index into files
-  onPrev,         // go to previous file
-  onNext,         // go to next file
-  running,        // boolean — is the simulation running?
-  onTogglePlay,   // toggle play/pause
-  onDelete,       // open delete confirmation
-  onSettings,     // open settings panel
-  onUpload,       // open upload dialog
-  onBuildSwarm,   // open build-swarm dialog
-  onAddPeer,      // open add-peer dialog
+  files,             // array of all file objects
+  fileIndex,         // current index into files
+  onPrev,            // go to previous file
+  onNext,            // go to next file
+  running,           // boolean — is the simulation running?
+  onTogglePlay,      // toggle play/pause
+  onDelete,          // open delete confirmation
+  onSettings,        // open settings panel
+  onUpload,          // open upload dialog
+  onBuildSwarm,      // open build-swarm dialog
+  onAddPeer,         // open add-peer dialog
+  explainMode,       // boolean — is Explanation mode on?
+  onToggleExplain,   // toggle Explanation mode on/off
 }) {
   const currentFile = files[fileIndex];
 
@@ -94,6 +97,15 @@ function Header({
           {running ? '⏸' : '▶'}
         </button>
       )}
+
+      {/* Explanation mode toggle — filled purple when ON, outlined when OFF */}
+      <button
+        className={`header-btn${explainMode ? ' explain-active' : ''}`}
+        onClick={onToggleExplain}
+        title={explainMode ? 'Turn off Explanation mode' : 'Turn on Explanation mode'}
+      >
+        💡 Explanation mode
+      </button>
 
       <button className="header-btn" onClick={onSettings}>⚙ Settings</button>
       <button className="header-btn" onClick={onUpload}>⇧ Upload file</button>

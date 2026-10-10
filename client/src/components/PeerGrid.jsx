@@ -5,11 +5,11 @@
    Responsibilities:
    - Renders one PeerTile per peer in `peers`.
    - Tracks which tile is hovered and the mouse position.
-   - Works out which tile ids to highlight (the hovered peer's
-     `connections`).
+   - Works out which tile ids to highlight (the hovered peer's connections).
    - Shows the hover tooltip (PeerHoverCard) at the cursor.
-   - Calls `onSelectPeer` when a tile is clicked, which triggers
-     the detail view in App.jsx.
+   - Calls `onSelectPeer` when a tile is clicked.
+   - `explainHighlightLabels` (Set<string>) — labels of peers named in the
+     currently selected explain event; those tiles get an accent outline.
    ============================================================ */
 import React, { useState } from 'react';
 import PeerTile from './PeerTile.jsx';
@@ -43,7 +43,9 @@ function PeerHoverCard({ peer, pos }) {
   );
 }
 
-function PeerGrid({ peers, selectedPeerId, onSelectPeer }) {
+// explainHighlightLabels defaults to an empty Set so callers that don't
+// use Explanation mode can omit the prop without errors.
+function PeerGrid({ peers, selectedPeerId, onSelectPeer, explainHighlightLabels = new Set() }) {
   // `hoveredPeer` = the peer object currently under the cursor
   const [hoveredPeer, setHoveredPeer] = useState(null);
   // `hoverPos`    = { x, y } in viewport coordinates
@@ -73,6 +75,8 @@ function PeerGrid({ peers, selectedPeerId, onSelectPeer }) {
             peer={peer}
             highlighted={highlightIds.has(peer.id)}
             selected={peer.id === selectedPeerId}
+            // True when this peer's label is in the explain event's peers list
+            explainHighlight={explainHighlightLabels.has(peer.label)}
             onHover={handleHover}
             onLeave={handleLeave}
             onSelect={onSelectPeer}
