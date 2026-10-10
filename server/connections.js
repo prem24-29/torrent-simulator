@@ -155,6 +155,27 @@ function diffTunnels(before, after) {
   return { formed, broken };
 }
 
+// Compare connection lists before and after. `ids` limits it to one file's peers.
+// Each link is reported once, as a sorted pair [idA, idB].
+function diffConnections(before, after, ids) {
+  const idSet = new Set(ids);
+  const pairsOf = (conns) => {
+    const set = new Set();
+    for (const id of ids) {
+      for (const other of conns[id] || []) {
+        if (idSet.has(other)) set.add([id, other].sort().join('|'));
+      }
+    }
+    return set;
+  };
+  const b = pairsOf(before);
+  const a = pairsOf(after);
+  return {
+    formed: [...a].filter((k) => !b.has(k)).map((k) => k.split('|')),
+    dropped: [...b].filter((k) => !a.has(k)).map((k) => k.split('|'))
+  };
+}
+
 module.exports = {
   getCandidatePeers,
   scoreCandidate,
@@ -166,5 +187,6 @@ module.exports = {
   tunnelKey,
   pruneTunnels,
   formTunnels,
-  diffTunnels
+  diffTunnels,
+  diffConnections
 };

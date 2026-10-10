@@ -269,3 +269,29 @@ test('diffTunnels reports nothing when nothing changed', () => {
   expect(d.formed).toEqual([]);
   expect(d.broken).toEqual([]);
 });
+
+const { diffConnections } = require('./connections');
+
+test('diffConnections finds a new link once, even if listed by both ends', () => {
+  const d = diffConnections({ a: [], b: [] }, { a: ['b'], b: ['a'] }, ['a', 'b']);
+  expect(d.formed).toEqual([['a', 'b']]);
+  expect(d.dropped).toEqual([]);
+});
+
+test('diffConnections finds a dropped link', () => {
+  const d = diffConnections({ a: ['b'], b: ['a'] }, { a: [], b: [] }, ['a', 'b']);
+  expect(d.dropped).toEqual([['a', 'b']]);
+  expect(d.formed).toEqual([]);
+});
+
+test('diffConnections reports nothing when links are unchanged', () => {
+  const c = { a: ['b'], b: ['a'] };
+  const d = diffConnections({ a: ['b'], b: ['a'] }, c, ['a', 'b']);
+  expect(d.formed).toEqual([]);
+  expect(d.dropped).toEqual([]);
+});
+
+test('diffConnections ignores peers outside the given ids', () => {
+  const d = diffConnections({}, { a: ['x'], x: ['a'] }, ['a']);
+  expect(d.formed).toEqual([]);
+});

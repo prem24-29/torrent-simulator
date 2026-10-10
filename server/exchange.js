@@ -6,7 +6,7 @@ const state = require('./state');
 const { config, getUnchokeSlots } = require('./config');
 const { pickByReciprocity, pickByLinkRate, pickOptimistic, isServing } = require('./choke');
 const { getReciprocity } = require('./reciprocity');
-const { formConnections, reshufflePeer, pruneTunnels, formTunnels, tunnelKey, diffTunnels } = require('./connections');
+const { formConnections, reshufflePeer, pruneTunnels, formTunnels, tunnelKey, diffTunnels, diffConnections, scoreCandidate } = require('./connections');
 const { recordEvent } = require('./events');
 const TICK_SECONDS = 0.5; // must match the exchange interval in index.js (500ms)
 
@@ -84,6 +84,11 @@ async function runExchangeRound(fileId, io) {
   for (const peer of peers) byId[peer._id.toString()] = peer;
   const fid = fileId.toString();
 
+  // Snapshot connection lists so we can report what this round changed
+  const peerIds = peers.map((p) => p._id.toString());
+  const connBefore = {};
+  for (const id of peerIds) connBefore[id] = [...(state.connections[id] || [])];
+
   // Temporary bootstrap (replaced by the reshuffle in C7): peers with no list yet get connections
   if (peers.some((p) => state.connections[p._id.toString()] === undefined)) {
     const conns = formConnections(peers, config.connectionLimit);
@@ -97,6 +102,27 @@ async function runExchangeRound(fileId, io) {
     if (now < ps.nextReshuffleAt) continue;
     reshufflePeer(peer, peers, state.connections, config.connectionLimit);
         ps.nextReshuffleAt = now + config.reshuffleIntervalMs * (0.8 + Math.random() * 0.4);
+  }
+
+    // Record direct links that appeared or vanished (tunnel links are reported as tunnel events)
+  const connDiff = diffConnections(connBefore, state.connections, peerIds);
+  for (const [a, b] of connDiff.formed) {
+    const A = byId[a], B = byId[b];
+    const ab = scoreCandidate(A, B); // pieces B holds that A lacks
+    const ba = scoreCandidate(B, A);
+    recordEvent('connection', fid, [A.peerLabel, B.peerLabel],
+      `${A.peerLabel} and ${B.peerLabel} connected. ${A.peerLabel} can get ${ab} piece(s) from ${B.peerLabel}, and ${B.peerLabel} can get ${ba} from ${A.peerLabel}. Peers rank candidates by how many missing pieces they hold, and a link needs a free slot on both sides (limit ${config.connectionLimit}).`);
+  }
+  for (const [a, b] of connDiff.dropped) {
+    if (state.tunnels[tunnelKey(a, b)]) continue;
+    const A = byId[a], B = byId[b];
+    const ab = scoreCandidate(A, B);
+    const ba = scoreCandidate(B, A);
+    const why = ab === 0 && ba === 0
+      ? 'Neither holds a piece the other is missing, so the link had no purpose.'
+      : `A peer re-picks its connections at each reshuffle and keeps only the most useful ones that have a free slot (limit ${config.connectionLimit}), and this link did not make the cut. ${A.peerLabel} could still get ${ab} piece(s) from ${B.peerLabel}, and ${B.peerLabel} ${ba} from ${A.peerLabel}.`;
+    recordEvent('connection', fid, [A.peerLabel, B.peerLabel],
+      `${A.peerLabel} and ${B.peerLabel} are no longer connected. ${why}`);
   }
 
   // Tunnels: drop broken ones, then fill free slots of NATd peers with relayed links
@@ -317,7 +343,24 @@ async function runExchangeRound(fileId, io) {
     // Rarity as this peer sees it: only its own connections count
     const localFrequency = countPieceFrequency(myConns, file.pieceCount);
     
-    state.peers[peerId].waitingForPiece = findWaitingPiece(peer, myConns, file.pieceCount);
+        const wasWaiting = state.peers[peerId].waitingForPiece;
+    const nowWaiting = findWaitingPiece(peer, myConns, file.pieceCount);
+    state.peers[peerId].waitingForPiece = nowWaiting;
+
+    if (wasWaiting === null && nowWaiting !== null) {
+      const missing = peer.bitfield.filter((h) => !h).length;
+      const links = myConns.length === 0
+        ? 'it has no connections at all'
+        : `none of its ${myConns.length} connection(s) hold any of them`;
+      recordEvent('stall', fid, [peer.peerLabel],
+        `${peer.peerLabel} is stalled. It still misses ${missing} piece(s), but ${links} (the rarest it needs is piece ${nowWaiting}). It must wait for a reshuffle to find a connection that has what it needs.`);
+    } else if (wasWaiting !== null && nowWaiting === null) {
+      const done = peer.bitfield.every(Boolean);
+      recordEvent('stall', fid, [peer.peerLabel],
+        done
+          ? `${peer.peerLabel} is no longer stalled: it completed the file.`
+          : `${peer.peerLabel} is no longer stalled: a connection now holds a piece it needs.`);
+    }
 
     while ((incoming[peerId] || 0) < config.maxConcurrentDownloads) {
       // Pieces I lack, haven't reserved, and at least one connection holds
