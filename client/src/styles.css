@@ -1,0 +1,721 @@
+/* ============================================================
+   styles.css — global design tokens, layout, and component CSS.
+   All colours are defined here as variables so they can be
+   referenced by name throughout the rest of the file.
+   ============================================================ */
+
+/* --- Design tokens ----------------------------------------- */
+:root {
+  --bg:          #efe9f7;   /* page background */
+  --card:        #e0d3f2;   /* card / panel background */
+  --accent:      #8a00d4;   /* primary purple accent */
+  --gold:        #f9c46b;   /* seeder / complete fill */
+  --pink:        #f782c2;   /* downloading / leecher fill */
+  --idle:        #d9cdea;   /* empty tile track */
+  --warn:        #e8590c;   /* stalled / warning fill */
+  --text:        #1a0033;   /* main text */
+  --text-muted:  #6b5a8a;   /* secondary / muted text */
+  --radius:      12px;
+  --transition:  500ms ease; /* tile fill + number transitions */
+}
+
+/* --- Reset & base ------------------------------------------ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+button {
+  cursor: pointer;
+  font-family: inherit;
+}
+
+/* --- Page wrapper ------------------------------------------ */
+.page {
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 16px 20px 40px;
+}
+
+/* --- Card helper ------------------------------------------- */
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 0 16px;
+  border-bottom: 2px solid var(--idle);
+  margin-bottom: 16px;
+}
+
+.header h1 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--accent);
+  margin-right: 8px;
+  white-space: nowrap;
+}
+
+/* File switcher: prev / next + info */
+.file-switcher {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+}
+
+.file-switcher-nav {
+  background: none;
+  border: 2px solid var(--accent);
+  color: var(--accent);
+  border-radius: 6px;
+  width: 30px;
+  height: 30px;
+  font-size: 1rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition), color var(--transition);
+}
+.file-switcher-nav:hover:not(:disabled) {
+  background: var(--accent);
+  color: #fff;
+}
+.file-switcher-nav:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.file-switcher-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+}
+.file-switcher-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
+}
+.file-switcher-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* Play/pause button (circular) */
+.play-pause-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition), border-color var(--transition);
+  flex-shrink: 0;
+}
+.play-pause-btn:hover {
+  background: #6b00a8;
+  border-color: #6b00a8;
+}
+.play-pause-btn.paused {
+  background: var(--card);
+  color: var(--accent);
+}
+
+/* Header action buttons */
+.header-btn {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 2px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background var(--transition), color var(--transition);
+}
+.header-btn:hover {
+  background: var(--accent);
+  color: #fff;
+}
+.header-btn.danger {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+.header-btn.danger:hover {
+  background: var(--warn);
+  color: #fff;
+}
+
+/* Spacer pushes delete + play to the right */
+.header-spacer { flex: 1; }
+
+/* ============================================================
+   STAT CARDS
+   ============================================================ */
+.stat-cards {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+@media (max-width: 900px) {
+  .stat-cards { grid-template-columns: repeat(3, 1fr); }
+}
+
+.stat-card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.stat-card-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.stat-card-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--accent);
+  /* smooth number changes */
+  transition: color var(--transition);
+}
+
+/* ============================================================
+   TUNNELS PANEL
+   ============================================================ */
+.tunnels-panel {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  font-size: 0.85rem;
+}
+.tunnels-title {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.tunnel-line {
+  color: var(--text);
+  padding: 2px 0;
+}
+.tunnels-empty {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ============================================================
+   PEER GRID
+   ============================================================ */
+.peer-grid-section {
+  margin-bottom: 16px;
+}
+
+.peer-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Each tile is a fixed square */
+.peer-tile {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 2px solid transparent;
+  /* smooth outline changes when highlighted */
+  transition: border-color var(--transition);
+  background: var(--idle); /* base = idle colour */
+  flex-shrink: 0;
+}
+
+/* The filled portion rises from the bottom */
+.peer-tile-fill {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  /* height is set via inline style (progress * 100%) */
+  /* smooth height transitions make it feel continuous */
+  transition: height var(--transition), background-color var(--transition);
+}
+
+/* Label sits in the centre of the tile */
+.peer-tile-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-align: center;
+  padding: 4px;
+  word-break: break-all;
+  color: rgba(26,0,51,0.85);
+  /* sits on top of the fill */
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Highlighted tile (peer's connections on hover) */
+.peer-tile.highlighted {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+/* Selected tile (clicked, detail view) */
+.peer-tile.selected {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px var(--gold);
+}
+
+/* Hover tooltip card */
+.peer-hover-card {
+  position: fixed;
+  background: #fff;
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 0.78rem;
+  line-height: 1.6;
+  max-width: 220px;
+  z-index: 1000;
+  pointer-events: none;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+  color: var(--text);
+}
+.hover-card-label {
+  font-weight: 700;
+  font-size: 0.85rem;
+  margin-bottom: 4px;
+  color: var(--accent);
+}
+
+/* ============================================================
+   DETAIL VIEW
+   ============================================================ */
+
+/* Outer wrapper: vertical stack, full width */
+.detail-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+/* Grid area: shrinks to fit its tiles, no min-height */
+.detail-grid-area {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 16px;
+  /* width: 100% is implicit in a flex column */
+}
+.detail-grid-note {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.detail-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 2px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+  transition: background var(--transition), color var(--transition);
+}
+.detail-back-btn:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.detail-panel {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  font-size: 0.82rem;
+  line-height: 1.7;
+  /* full width — inherits from the flex column parent */
+}
+.detail-panel h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+.detail-hex {
+  font-family: monospace;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  word-break: break-all;
+  margin-bottom: 8px;
+}
+
+/* Three columns side by side: Info | Choking | In-flight */
+.detail-info-cols {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--idle);
+}
+/* Stack the three columns on narrow screens */
+@media (max-width: 900px) {
+  .detail-info-cols { grid-template-columns: 1fr; }
+}
+
+.detail-section {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--idle);
+}
+.detail-section-title {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.transfer-row {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--idle);
+  font-size: 0.78rem;
+}
+.transfer-row:last-child { border-bottom: none; }
+
+
+/* ============================================================
+   CONNECTIONS TABLE
+   ============================================================ */
+.connections-table-wrap {
+  overflow-x: auto;
+  margin-top: 12px;
+}
+.connections-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+.connections-table th {
+  background: var(--idle);
+  padding: 6px 10px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+.connections-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--idle);
+  vertical-align: middle;
+}
+.connections-table tr:last-child td { border-bottom: none; }
+.connections-table tr:hover td { background: rgba(138,0,212,0.04); }
+
+.reciprocity-btn {
+  padding: 6px 12px;
+  border-radius: 7px;
+  border: 1.5px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 600;
+  transition: background var(--transition), color var(--transition);
+}
+.reciprocity-btn:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.reciprocity-note {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
+/* ============================================================
+   ACTIVITY FEED
+   ============================================================ */
+.activity-feed {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+.activity-feed-title {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.activity-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--idle);
+  font-size: 0.82rem;
+}
+.activity-row:last-child { border-bottom: none; }
+.activity-time {
+  color: var(--text-muted);
+  white-space: nowrap;
+  font-size: 0.75rem;
+}
+.activity-empty {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 0.82rem;
+}
+
+/* ============================================================
+   MODAL (shared backdrop + box)
+   ============================================================ */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.modal-box {
+  background: var(--bg);
+  border-radius: var(--radius);
+  padding: 24px 28px;
+  max-width: 520px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+}
+.modal-box h2 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 16px;
+}
+.modal-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 14px;
+}
+.modal-error {
+  color: var(--warn);
+  font-size: 0.8rem;
+  margin-top: 6px;
+}
+.modal-success {
+  color: #1a7a1a;
+  font-size: 0.8rem;
+  margin-top: 6px;
+}
+.modal-note {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* Form helpers shared across modals */
+label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  display: block;
+  margin-bottom: 4px;
+}
+input[type="text"],
+input[type="number"],
+input[type="file"],
+select {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 7px;
+  border: 1.5px solid var(--idle);
+  background: #fff;
+  font-size: 0.85rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color var(--transition);
+}
+input:focus, select:focus {
+  border-color: var(--accent);
+}
+
+/* Primary button */
+.btn-primary {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: background var(--transition);
+}
+.btn-primary:hover { background: #6b00a8; }
+.btn-primary:disabled { opacity: 0.45; cursor: default; }
+
+/* Danger button */
+.btn-danger {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: none;
+  background: var(--warn);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: background var(--transition);
+}
+.btn-danger:hover { background: #b84000; }
+
+/* Ghost / cancel button */
+.btn-ghost {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1.5px solid var(--idle);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: border-color var(--transition), color var(--transition);
+}
+.btn-ghost:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ============================================================
+   SETTINGS PANEL
+   ============================================================ */
+.settings-field {
+  margin-top: 14px;
+}
+.settings-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.settings-input-row input {
+  flex: 1;
+  min-width: 80px;
+}
+
+/* ============================================================
+   BUILD SWARM
+   ============================================================ */
+.build-swarm-row {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr 60px 36px;
+  gap: 8px;
+  align-items: end;
+  margin-top: 10px;
+}
+.build-swarm-row label { font-size: 0.72rem; }
+.build-swarm-row select,
+.build-swarm-row input { font-size: 0.8rem; padding: 6px 8px; }
+.build-swarm-warning {
+  background: rgba(232,89,12,0.1);
+  border: 1.5px solid var(--warn);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  color: var(--warn);
+  margin-bottom: 12px;
+}
+.build-swarm-add-btn {
+  margin-top: 12px;
+  padding: 7px 14px;
+  border-radius: 7px;
+  border: 1.5px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: background var(--transition), color var(--transition);
+}
+.build-swarm-add-btn:hover { background: var(--accent); color: #fff; }
+.build-swarm-remove-btn {
+  padding: 6px;
+  border: 1.5px solid var(--idle);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1;
+  transition: border-color var(--transition), color var(--transition);
+}
+.build-swarm-remove-btn:hover { border-color: var(--warn); color: var(--warn); }
+
+/* ============================================================
+   EMPTY STATE
+   ============================================================ */
+.empty-state {
+  text-align: center;
+  padding: 80px 20px;
+  color: var(--text-muted);
+}
+.empty-state h2 {
+  font-size: 1.3rem;
+  margin-bottom: 8px;
+  color: var(--text-muted);
+}
+
+/* ============================================================
+   MISC UTILITIES
+   ============================================================ */
+.mt-8 { margin-top: 8px; }
+.mt-12 { margin-top: 12px; }
+.bold { font-weight: 700; }
+.muted { color: var(--text-muted); }
