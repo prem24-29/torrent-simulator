@@ -499,6 +499,40 @@ app.post('/api/dev/scenario', async (req, res) => {
   res.json({ created });
 });
 
+app.post('/api/dev/add-peer', async (req, res) => {
+  const { fileId, label, role, tier, behindNAT } = req.body || {};
+
+  const file = await File.findById(fileId);
+  if (!file) return res.status(404).json({ error: 'File not found' });
+
+  if (typeof label !== 'string' || label.trim() === '') {
+    return res.status(400).json({ error: 'label is required' });
+  }
+  if (role !== 'seeder' && role !== 'leecher') {
+    return res.status(400).json({ error: 'role must be "seeder" or "leecher"' });
+  }
+  if (tier !== undefined && !TIERS.includes(tier)) {
+    return res.status(400).json({ error: `tier must be one of: ${TIERS.join(', ')}` });
+  }
+  if (behindNAT !== undefined && typeof behindNAT !== 'boolean') {
+    return res.status(400).json({ error: 'behindNAT must be true or false' });
+  }
+
+  const exists = await Peer.findOne({ fileId, peerLabel: label.trim() });
+  if (exists) return res.status(409).json({ error: `A peer named "${label.trim()}" already exists in this file` });
+
+  const peer = await Peer.create({
+    fileId,
+    peerLabel: label.trim(),
+    tier: tier || randomTier(),
+    behindNAT: behindNAT !== undefined ? behindNAT : randomBehindNAT(),
+    bitfield: new Array(file.pieceCount).fill(role === 'seeder')
+  });
+
+  io.emit('swarm-update', { fileId: String(fileId) });
+  res.json({ peer: { label: peer.peerLabel, tier: peer.tier, behindNAT: peer.behindNAT, role } });
+});
+
 app.post('/api/config/reshuffle-interval', (req, res) => {
   const { value } = req.body || {};
   if (!isPositiveInt(value) || value < 1000) {
