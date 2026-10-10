@@ -18,6 +18,7 @@ const { pickRandomUnchoked } = require('./choke');
 const { getReciprocity } = require('./reciprocity');
 const { buildLiveState } = require('./live');
 const { EVENT_TYPES, getEvents, clearEvents } = require('./events');
+const { setArmed, setPinned, setAll, getArmState, isKnown } = require('./explain');
 
 const app = express();
 app.use(cors());
@@ -572,4 +573,31 @@ app.post('/api/config/optimistic-interval', (req, res) => {
 app.get('/api/events/:fileId', (req, res) => {
   const since = Number(req.query.since) || 0;
   res.json({ types: EVENT_TYPES, events: getEvents(req.params.fileId, since) });
+});
+
+app.get('/api/explain', (req, res) => {
+  res.json({ types: getArmState() });
+});
+
+app.post('/api/explain/arm', (req, res) => {
+  const { type, armed } = req.body || {};
+  if (!isKnown(type)) return res.status(400).json({ error: 'unknown event type' });
+  if (typeof armed !== 'boolean') return res.status(400).json({ error: 'armed must be true or false' });
+  setArmed(type, armed);
+  res.json({ types: getArmState() });
+});
+
+app.post('/api/explain/pin', (req, res) => {
+  const { type, pinned } = req.body || {};
+  if (!isKnown(type)) return res.status(400).json({ error: 'unknown event type' });
+  if (typeof pinned !== 'boolean') return res.status(400).json({ error: 'pinned must be true or false' });
+  setPinned(type, pinned);
+  res.json({ types: getArmState() });
+});
+
+app.post('/api/explain/arm-all', (req, res) => {
+  const { armed } = req.body || {};
+  if (typeof armed !== 'boolean') return res.status(400).json({ error: 'armed must be true or false' });
+  setAll(armed);
+  res.json({ types: getArmState() });
 });
