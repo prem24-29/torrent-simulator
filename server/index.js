@@ -43,6 +43,15 @@ function randomBehindNAT() {
   return Math.random() < NAT_PROBABILITY;
 }
 
+const ROLES = ['seeder', 'leecher', 'random'];
+
+// Build a bitfield for a role. "random" keeps each piece with probability `fill`.
+function makeBitfield(pieceCount, role, fill = 0.5) {
+  if (role === 'seeder') return new Array(pieceCount).fill(true);
+  if (role === 'leecher') return new Array(pieceCount).fill(false);
+  return Array.from({ length: pieceCount }, () => Math.random() < fill);
+}
+
 // Remove all peers of a file, their logs, and every piece of live state for them.
 async function wipePeersOfFile(fileId) {
   const fid = String(fileId);
@@ -452,7 +461,15 @@ app.post('/api/dev/scenario', async (req, res) => {
   const file = await File.findById(fileId);
   if (!file) return res.status(404).json({ error: 'File not found' });
   if (!Array.isArray(groups)) return res.status(400).json({ error: 'groups must be an array' });
-
+    for (const g of groups) {
+    if (!ROLES.includes(g.role)) {
+      return res.status(400).json({ error: `role must be "seeder", "leecher" or "random" (got "${g.role}")` });
+    }
+    if (g.fill !== undefined && (typeof g.fill !== 'number' || g.fill < 0 || g.fill > 1)) {
+      return res.status(400).json({ error: 'fill must be a number from 0 to 1' });
+    }
+  }
+   
   const fid = String(fileId);
 
   // Clear this file's peers and their live state (same cleanup as clear-peers)
@@ -483,13 +500,12 @@ app.post('/api/dev/scenario', async (req, res) => {
   for (const g of groups) {
     const count = g.count || 1;
     for (let i = 0; i < count; i++) {
-      const full = g.role === 'seeder';
       const peer = await Peer.create({
         fileId,
         peerLabel: count === 1 ? g.label : `${g.label}${i + 1}`,
         tier: TIERS.includes(g.tier) ? g.tier : randomTier(),
         behindNAT: typeof g.behindNAT === 'boolean' ? g.behindNAT : false,
-        bitfield: new Array(file.pieceCount).fill(full)
+        bitfield: makeBitfield(file.pieceCount, g.role, g.fill)
       });
       created.push({ label: peer.peerLabel, tier: peer.tier, behindNAT: peer.behindNAT, role: g.role });
     }
@@ -500,7 +516,7 @@ app.post('/api/dev/scenario', async (req, res) => {
 });
 
 app.post('/api/dev/add-peer', async (req, res) => {
-  const { fileId, label, role, tier, behindNAT } = req.body || {};
+  const { fileId, label, role, tier, behindNAT, fill } = req.body || {};
 
   const file = await File.findById(fileId);
   if (!file) return res.status(404).json({ error: 'File not found' });
@@ -508,14 +524,11 @@ app.post('/api/dev/add-peer', async (req, res) => {
   if (typeof label !== 'string' || label.trim() === '') {
     return res.status(400).json({ error: 'label is required' });
   }
-  if (role !== 'seeder' && role !== 'leecher') {
-    return res.status(400).json({ error: 'role must be "seeder" or "leecher"' });
+  if (!ROLES.includes(role)) {
+    return res.status(400).json({ error: 'role must be "seeder", "leecher" or "random"' });
   }
-  if (tier !== undefined && !TIERS.includes(tier)) {
-    return res.status(400).json({ error: `tier must be one of: ${TIERS.join(', ')}` });
-  }
-  if (behindNAT !== undefined && typeof behindNAT !== 'boolean') {
-    return res.status(400).json({ error: 'behindNAT must be true or false' });
+  if (fill !== undefined && (typeof fill !== 'number' || fill < 0 || fill > 1)) {
+    return res.status(400).json({ error: 'fill must be a number from 0 to 1' });
   }
 
   const exists = await Peer.findOne({ fileId, peerLabel: label.trim() });
@@ -526,7 +539,7 @@ app.post('/api/dev/add-peer', async (req, res) => {
     peerLabel: label.trim(),
     tier: tier || randomTier(),
     behindNAT: behindNAT !== undefined ? behindNAT : randomBehindNAT(),
-    bitfield: new Array(file.pieceCount).fill(role === 'seeder')
+    bitfield: makeBitfield(file.pieceCount, role, fill)
   });
 
   io.emit('swarm-update', { fileId: String(fileId) });
