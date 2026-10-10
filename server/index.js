@@ -17,8 +17,8 @@ const { formConnections, findRelay } = require('./connections');
 const { pickRandomUnchoked } = require('./choke');
 const { getReciprocity } = require('./reciprocity');
 const { buildLiveState } = require('./live');
-const { EVENT_TYPES, getEvents, clearEvents } = require('./events');
-const { setArmed, setPinned, setAll, getArmState, isKnown } = require('./explain');
+const { EVENT_TYPES, getEvents, clearEvents, getLastEventId, getEventsSince } = require('./events');
+const { setArmed, setPinned, setAll, getArmState, isKnown, triggerFromEvents, setPause, getPause, clearPause } = require('./explain');
 
 const app = express();
 app.use(cors());
@@ -412,11 +412,21 @@ setInterval(async () => {
   if (roundInProgress) return;
 
   roundInProgress = true;
+  const sinceId = getLastEventId();   // events recorded after this belong to this round
   const t0 = Date.now();
   try {
     const fileIds = await Peer.distinct('fileId');
     for (const fileId of fileIds) {
       await runExchangeRound(fileId, io);
+    }
+
+    // Explanation mode: pause once if any armed type happened this round
+    const matched = triggerFromEvents(getEventsSince(sinceId));
+    if (matched.length > 0) {
+      simulationRunning = false;
+      setPause(matched);
+      console.log(`explanation pause: ${matched.length} event(s), first: ${matched[0].type}`);
+      io.emit('swarm-update', { fileId: matched[0].fileId });
     }
   } finally {
     console.log(`round took ${Date.now() - t0} ms`);
@@ -576,7 +586,13 @@ app.get('/api/events/:fileId', (req, res) => {
 });
 
 app.get('/api/explain', (req, res) => {
-  res.json({ types: getArmState() });
+  res.json({ types: getArmState(), paused: getPause(), running: simulationRunning });
+});
+
+app.post('/api/explain/continue', (req, res) => {
+  clearPause();
+  simulationRunning = true;
+  res.json({ types: getArmState(), paused: null, running: true });
 });
 
 app.post('/api/explain/arm', (req, res) => {

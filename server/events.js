@@ -41,4 +41,14 @@ function clearEvents(fileId) {
   }
 }
 
-module.exports = { EVENT_TYPES, recordEvent, getEvents, clearEvents, MAX_EVENTS };
+// Id of the most recent event, so a round can ask "what happened since then?"
+function getLastEventId() {
+  return nextId - 1;
+}
+
+// All events (any file) newer than sinceId.
+function getEventsSince(sinceId) {
+  return events.filter((e) => e.id > sinceId);
+}
+
+module.exports = { EVENT_TYPES, recordEvent, getEvents, clearEvents, MAX_EVENTS, getLastEventId, getEventsSince };

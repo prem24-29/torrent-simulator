@@ -47,4 +47,30 @@ function getArmState() {
   return out;
 }
 
-module.exports = { setArmed, setPinned, setAll, getArmState, isKnown };
+// Of the events recorded this round, keep those whose type is armed.
+// Matched types that are not pinned uncheck themselves. An empty result means: don't pause.
+function triggerFromEvents(events) {
+  const matched = events.filter((e) => isKnown(e.type) && arm[e.type].armed);
+  const types = [...new Set(matched.map((e) => e.type))];
+  for (const t of types) {
+    if (!arm[t].pinned) arm[t].armed = false;
+  }
+  return matched;
+}
+
+// The explanation pause currently showing, or null. The first matched event is the headline.
+let pause = null;
+
+function setPause(matched) {
+  pause = { time: Date.now(), headline: matched[0], events: matched };
+}
+
+function getPause() {
+  return pause;
+}
+
+function clearPause() {
+  pause = null;
+}
+
+module.exports = { setArmed, setPinned, setAll, getArmState, isKnown, triggerFromEvents, getPause, setPause, clearPause };
