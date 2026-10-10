@@ -6,7 +6,8 @@ const state = require('./state');
 const { config, getUnchokeSlots } = require('./config');
 const { pickByReciprocity, pickByLinkRate, pickOptimistic, isServing } = require('./choke');
 const { getReciprocity } = require('./reciprocity');
-const { formConnections, reshufflePeer, pruneTunnels, formTunnels, tunnelKey } = require('./connections');
+const { formConnections, reshufflePeer, pruneTunnels, formTunnels, tunnelKey, diffTunnels } = require('./connections');
+const { recordEvent } = require('./events');
 const TICK_SECONDS = 0.5; // must match the exchange interval in index.js (500ms)
 
 function countPieceFrequency(peers, pieceCount) {
@@ -99,8 +100,28 @@ async function runExchangeRound(fileId, io) {
   }
 
   // Tunnels: drop broken ones, then fill free slots of NATd peers with relayed links
+    // Tunnels: drop broken ones, then fill free slots of NATd peers with relayed links
+  const tunnelsBefore = { ...state.tunnels };
   pruneTunnels(state.connections, state.tunnels);
   formTunnels(peers, state.connections, state.tunnels, config.connectionLimit);
+
+  // Record what changed. Keys of other files' tunnels are skipped (their peers aren't in byId).
+  const tunnelDiff = diffTunnels(tunnelsBefore, state.tunnels);
+  for (const [key, relayId] of tunnelDiff.formed) {
+    const [a, b] = key.split('|');
+    if (!byId[a] || !byId[b] || !byId[relayId]) continue;
+    const A = byId[a].peerLabel, B = byId[b].peerLabel, R = byId[relayId].peerLabel;
+    recordEvent('tunnel', fid, [A, B, R],
+      `${A} and ${B} are both behind NAT, so they cannot connect directly. ${R} is public and connected to both, so it now carries their traffic as a tunnel.`);
+  }
+  for (const [key, relayId] of tunnelDiff.broken) {
+    const [a, b] = key.split('|');
+    if (!byId[a] || !byId[b]) continue;
+    const A = byId[a].peerLabel, B = byId[b].peerLabel;
+    const R = byId[relayId] ? byId[relayId].peerLabel : 'the relay';
+    recordEvent('tunnel', fid, [A, B, R],
+      `The tunnel between ${A} and ${B} through ${R} ended, because one of the links it depended on was dropped.`);
+  }
 
   // Drop unchoke entries whose link no longer exists
   for (const peer of peers) {
@@ -223,6 +244,10 @@ async function runExchangeRound(fileId, io) {
 
     // Piece complete: this is the only moment MongoDB is written
     receiver.bitfield[t.pieceIndex] = true;
+    if (receiver.bitfield.every(Boolean)) {
+      recordEvent('complete', fid, [receiver.peerLabel, sender.peerLabel],
+        `${receiver.peerLabel} now holds all ${file.pieceCount} pieces and becomes a seeder. Its last piece (${t.pieceIndex}) came from ${sender.peerLabel}.`);
+    }
     receiver.downloadedBytes += file.pieceSize;
     sender.uploadedBytes += file.pieceSize;
     state.transfers.splice(i, 1);

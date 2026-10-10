@@ -248,3 +248,24 @@ test('prune removes a tunnel whose relay link is gone, and the link entries', ()
   expect(conns['a']).toEqual([]);
   expect(conns['b']).toEqual([]);
 });
+
+const { diffTunnels } = require('./connections');
+
+test('diffTunnels finds a new tunnel', () => {
+  const d = diffTunnels({}, { 'a|b': 'r' });
+  expect(d.formed).toEqual([['a|b', 'r']]);
+  expect(d.broken).toEqual([]);
+});
+
+test('diffTunnels finds a vanished tunnel and remembers its relay', () => {
+  const d = diffTunnels({ 'a|b': 'r' }, {});
+  expect(d.broken).toEqual([['a|b', 'r']]);
+  expect(d.formed).toEqual([]);
+});
+
+test('diffTunnels reports nothing when nothing changed', () => {
+  const t = { 'a|b': 'r' };
+  const d = diffTunnels({ ...t }, t);
+  expect(d.formed).toEqual([]);
+  expect(d.broken).toEqual([]);
+});

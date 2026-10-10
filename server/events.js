@@ -9,7 +9,7 @@ const EVENT_TYPES = {
   optimistic: { name: 'The optimistic slot rotates', syllabus: 'Session 36: fair bandwidth allocation' },
   'choke-drop': { name: 'In-flight transfers are dropped by a choke', syllabus: 'Sessions 25/27: traffic throttling' },
   stall: { name: 'A peer becomes stalled or recovers', syllabus: 'Session 26: scheduling (rarest-first)' },
-  complete: { name: 'A peer completes the file', syllabus: 'Session 5: framing and error control (hash-verified pieces)' }
+  complete: { name: 'A peer completes the file', syllabus: 'Session 5: framing (the file is split into hashed pieces)' }
 };
 
 const events = [];   // oldest first; changed in place, never replaced

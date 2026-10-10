@@ -142,5 +142,29 @@ function formTunnels(peers, conns, tunnels, limit, rng = Math.random) {
     }
   }
 }
+// Compare two tunnel maps ({ "idA|idB": relayId }). Returns what appeared and what vanished.
+function diffTunnels(before, after) {
+  const formed = [];
+  const broken = [];
+  for (const key of Object.keys(after)) {
+    if (!(key in before)) formed.push([key, after[key]]);
+  }
+  for (const key of Object.keys(before)) {
+    if (!(key in after)) broken.push([key, before[key]]);
+  }
+  return { formed, broken };
+}
 
-module.exports = { getCandidatePeers, scoreCandidate, rankCandidates, formConnections, reshufflePeer, canConnectDirectly, findRelay, tunnelKey, pruneTunnels, formTunnels };
+module.exports = {
+  getCandidatePeers,
+  scoreCandidate,
+  rankCandidates,
+  formConnections,
+  reshufflePeer,
+  canConnectDirectly,
+  findRelay,
+  tunnelKey,
+  pruneTunnels,
+  formTunnels,
+  diffTunnels
+};
