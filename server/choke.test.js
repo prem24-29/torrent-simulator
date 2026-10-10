@@ -189,3 +189,43 @@ test('not serving when the receiver is in neither', () => {
 test('not serving when the sender has no entries at all', () => {
   expect(isServing('s', 'r', {}, {})).toBe(false);
 });
+
+const { sameIds, unchokeMessage, chokeDropMessage } = require('./choke');
+
+test('sameIds ignores order but not content', () => {
+  expect(sameIds(['a', 'b'], ['b', 'a'])).toBe(true);
+  expect(sameIds(['a'], ['a', 'b'])).toBe(false);
+  expect(sameIds(['a', 'b'], ['a', 'c'])).toBe(false);
+  expect(sameIds([], [])).toBe(true);
+});
+
+test('leecher unchoke message names tit-for-tat and the bytes', () => {
+  const m = unchokeMessage('L1', false, [{ label: 'S1', value: 48 }], 4);
+  expect(m).toContain('tit-for-tat');
+  expect(m).toContain('S1 (48 KB)');
+});
+
+test('seeder unchoke message names link rate', () => {
+  const m = unchokeMessage('S1', true, [{ label: 'L1', value: 400 }], 4);
+  expect(m).toContain('seeder');
+  expect(m).toContain('L1 (400 KB/s)');
+});
+
+test('empty unchoke message explains unused slots', () => {
+  expect(unchokeMessage('L1', false, [], 4)).toContain('no connection that needs anything');
+});
+
+test('choke drop message totals the lost progress', () => {
+  const m = chokeDropMessage([
+    { from: 'a', to: 'b', piece: 3, kb: 10, natBlocked: false },
+    { from: 'c', to: 'd', piece: 5, kb: 6, natBlocked: false }
+  ]);
+  expect(m).toContain('2 in-flight');
+  expect(m).toContain('16 KB');
+  expect(m).toContain('lost that slot');
+});
+
+test('choke drop message explains tunnel loss when all are NAT pairs', () => {
+  const m = chokeDropMessage([{ from: 'a', to: 'b', piece: 1, kb: 2, natBlocked: true }]);
+  expect(m).toContain('tunnel ended');
+});

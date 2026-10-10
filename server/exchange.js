@@ -4,7 +4,7 @@ const TransferLog = require('./models/TransferLog');
 const { ensurePeerState, linkRate } = require('./bandwidth');
 const state = require('./state');
 const { config, getUnchokeSlots } = require('./config');
-const { pickByReciprocity, pickByLinkRate, pickOptimistic, isServing } = require('./choke');
+const { pickByReciprocity, pickByLinkRate, pickOptimistic, isServing, sameIds, unchokeMessage, chokeDropMessage } = require('./choke');
 const { getReciprocity } = require('./reciprocity');
 const { formConnections, reshufflePeer, pruneTunnels, formTunnels, tunnelKey, diffTunnels, diffConnections, scoreCandidate } = require('./connections');
 const { recordEvent } = require('./events');
@@ -157,7 +157,7 @@ async function runExchangeRound(fileId, io) {
     state.unchoked[id] = state.unchoked[id].filter((x) => mine.includes(x));
   }
 
-    // Re-choke: each peer re-picks its unchoke set every chokeIntervalMs
+  // Re-choke: each peer re-picks its unchoke set every chokeIntervalMs
   for (const peer of peers) {
     const id = peer._id.toString();
     const ps = state.peers[id];
@@ -169,8 +169,22 @@ async function runExchangeRound(fileId, io) {
     const picked = isSeeder
       ? pickByLinkRate(peer, conns, getUnchokeSlots(), state.peers)
       : pickByReciprocity(peer, conns, getUnchokeSlots(), scores);
+
+    const prevSet = state.unchoked[id] || [];
     state.unchoked[id] = picked.map((p) => p._id.toString());
     ps.nextChokeAt = now + config.chokeIntervalMs;
+
+    // Only report real changes
+    if (!sameIds(prevSet, state.unchoked[id])) {
+      const entries = picked.map((p) => ({
+        label: p.peerLabel,
+        value: isSeeder
+          ? Math.round(Math.min(ps.uploadCap, state.peers[p._id.toString()].downloadCap))
+          : Math.round((scores[p.peerLabel] || 0) / 1024)
+      }));
+      recordEvent('unchoke', fid, [peer.peerLabel, ...picked.map((p) => p.peerLabel)],
+        unchokeMessage(peer.peerLabel, isSeeder, entries, getUnchokeSlots()));
+    }
   }
 
 
@@ -183,10 +197,17 @@ async function runExchangeRound(fileId, io) {
     if (o && now < o.nextAt && !targetGone) continue;
 
     const target = pickOptimistic(peer, conns, state.unchoked[id] || []);
+    const prevTarget = o ? o.target : null;
     state.optimistic[id] = {
       target: target ? target._id.toString() : null,
       nextAt: now + config.optimisticIntervalMs * (0.8 + Math.random() * 0.4)
     };
+
+    if (target && target._id.toString() !== prevTarget) {
+      const prevLabel = prevTarget && byId[prevTarget] ? byId[prevTarget].peerLabel : null;
+      recordEvent('optimistic', fid, [peer.peerLabel, target.peerLabel],
+        `${peer.peerLabel} gave its optimistic slot to ${target.peerLabel}${prevLabel ? ` (it was ${prevLabel})` : ''}. The target is chosen at random among interested connections that are not already unchoked, so a peer that has sent nothing yet still gets served and slow or new peers are not starved.`);
+    }
   }
 
   // PHASE 1: advance in-flight transfers (iterate backwards so removing is safe)
@@ -198,19 +219,30 @@ async function runExchangeRound(fileId, io) {
 
   // Choke check: drop transfers whose sender no longer serves the receiver.
   // Partial progress (bytesDone) is discarded with the transfer.
-  let dropped = 0;
+  const drops = [];
   for (let i = state.transfers.length - 1; i >= 0; i--) {
     const t = state.transfers[i];
+    if (t.fileId !== fid) continue;
     const s = byId[t.fromId];
     const r = byId[t.toId];
     const tunneled = !!state.tunnels[tunnelKey(t.fromId, t.toId)];
-    const natBlocked = s && r && s.behindNAT && r.behindNAT && !tunneled;
+    const natBlocked = !!(s && r && s.behindNAT && r.behindNAT && !tunneled);
     if (natBlocked || !isServing(t.fromId, t.toId, state.unchoked, state.optimistic)) {
+      drops.push({
+        from: s ? s.peerLabel : 'a removed peer',
+        to: r ? r.peerLabel : 'a removed peer',
+        piece: t.pieceIndex,
+        kb: Math.round(t.bytesDone / 1024),
+        natBlocked
+      });
       state.transfers.splice(i, 1);
-      dropped++;
     }
   }
-  if (dropped > 0) console.log(`choked: dropped ${dropped} in-flight transfer(s)`);
+  if (drops.length > 0) {
+    console.log(`choked: dropped ${drops.length} in-flight transfer(s)`);
+    const labels = [...new Set(drops.flatMap((d) => [d.from, d.to]))];
+    recordEvent('choke-drop', fid, labels, chokeDropMessage(drops));
+  }
   
   const sendCount = {};
   for (const t of state.transfers) {
