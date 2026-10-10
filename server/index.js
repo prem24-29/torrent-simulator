@@ -17,6 +17,7 @@ const { formConnections, findRelay } = require('./connections');
 const { pickRandomUnchoked } = require('./choke');
 const { getReciprocity } = require('./reciprocity');
 const { buildLiveState } = require('./live');
+const { EVENT_TYPES, getEvents, clearEvents } = require('./events');
 
 const app = express();
 app.use(cors());
@@ -55,6 +56,7 @@ function makeBitfield(pieceCount, role, fill = 0.5) {
 // Remove all peers of a file, their logs, and every piece of live state for them.
 async function wipePeersOfFile(fileId) {
   const fid = String(fileId);
+  clearEvents(fid); // clear the in-memory event log for this file
   const doomed = await Peer.find({ fileId }, '_id');
   await Peer.deleteMany({ fileId });
   const ids = new Set(doomed.map((d) => d._id.toString()));
@@ -221,6 +223,7 @@ app.delete('/api/dev/clear-peers', async (req, res) => {
   const { fileId } = req.body || {};
 
   if (fileId) {
+    clearEvents(fileId); // clear the in-memory event log for this file
     const doomed = await Peer.find({ fileId }, '_id');
     await Peer.deleteMany({ fileId });
     for (const d of doomed) {
@@ -247,6 +250,7 @@ app.delete('/api/dev/clear-peers', async (req, res) => {
   for (const id of Object.keys(state.unchoked)) delete state.unchoked[id];
   for (const id of Object.keys(state.optimistic)) delete state.optimistic[id];
   for (const k of Object.keys(state.tunnels)) delete state.tunnels[k];
+  for (const f of await File.find({}, '_id')) clearEvents(f._id);
   io.emit('swarm-update', { fileId: null });
   res.json({ message: 'All peers cleared across all files' });
 });
@@ -471,6 +475,7 @@ app.post('/api/dev/scenario', async (req, res) => {
   }
    
   const fid = String(fileId);
+  clearEvents(fid); // clear the in-memory event log for this file
 
   // Clear this file's peers and their live state (same cleanup as clear-peers)
   const doomed = await Peer.find({ fileId }, '_id');
@@ -562,4 +567,9 @@ app.post('/api/config/optimistic-interval', (req, res) => {
   }
   config.optimisticIntervalMs = value;
   res.json({ optimisticIntervalMs: config.optimisticIntervalMs });
+});
+
+app.get('/api/events/:fileId', (req, res) => {
+  const since = Number(req.query.since) || 0;
+  res.json({ types: EVENT_TYPES, events: getEvents(req.params.fileId, since) });
 });
