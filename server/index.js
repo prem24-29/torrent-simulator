@@ -1,7 +1,7 @@
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const File = require('./models/File');
-const Peer = require('./models/Peer');
+const Peer = require('./models/peer');
 const { runExchangeRound } = require('./exchange');
 const TransferLog = require('./models/TransferLog');
 const express = require('express');
@@ -421,6 +421,7 @@ setInterval(async () => {
   const sinceId = getLastEventId();   // events recorded after this belong to this round
   const t0 = Date.now();
   try {
+    if (mongoose.connection.readyState !== 1) return;
     const fileIds = await Peer.distinct('fileId');
     for (const fileId of fileIds) {
       await runExchangeRound(fileId, io);
@@ -434,6 +435,8 @@ setInterval(async () => {
       console.log(`explanation pause: ${matched.length} event(s), first: ${matched[0].type}`);
       io.emit('swarm-update', { fileId: matched[0].fileId });
     }
+  } catch (err) {
+    console.error('Round error:', err.message || err);
   } finally {
     console.log(`round took ${Date.now() - t0} ms`);
     roundInProgress = false;

@@ -1,4 +1,4 @@
-const Peer = require('./models/Peer');
+const Peer = require('./models/peer');
 const File = require('./models/File');
 const TransferLog = require('./models/TransferLog');
 const { ensurePeerState, linkRate } = require('./bandwidth');
