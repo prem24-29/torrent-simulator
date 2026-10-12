@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "start": "node index.js",
     "dev": "nodemon index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -17,7 +18,8 @@
     "express": "^5.2.1",
     "mongoose": "^9.9.2",
     "multer": "^2.2.0",
-    "socket.io": "^4.8.3"
+    "socket.io": "^4.8.3",
+    "torrent-simulator": "file:.."
   },
   "devDependencies": {
     "jest": "^30.5.2",

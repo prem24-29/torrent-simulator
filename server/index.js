@@ -1,4 +1,5 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 const File = require('./models/File');
 const Peer = require('./models/Peer');
 const { runExchangeRound } = require('./exchange');
@@ -23,7 +24,12 @@ const { setArmed, setPinned, setAll, getArmState, isKnown, triggerFromEvents, se
 const app = express();
 app.use(cors());
 app.use(express.json());
-const upload = multer({ dest: 'uploads/' });
+
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+const upload = multer({ dest: uploadDir });
 
 let simulationRunning = true;
 let roundInProgress = false;
@@ -93,9 +99,9 @@ mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('Connected to MongoDB'))
     .catch((err) => console.error('MongoDB connection error:', err));
 
-app.get('/', (req, res) => {
-    res.send('Server is alive');
-})
+app.get('/health', (req, res) => {
+    res.status(200).send('OK');
+});
 
 
 app.post('/api/files/upload', upload.single('file'), async (req, res) => {
@@ -435,8 +441,9 @@ setInterval(async () => {
 }, 500);
 
 
-const server = app.listen(5000, () => {
-  console.log('Server running on http://localhost:5000');
+const PORT = process.env.PORT || 5000;
+const server = app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
 
 const io = new Server(server, {
@@ -617,3 +624,19 @@ app.post('/api/explain/arm-all', (req, res) => {
   setAll(armed);
   res.json({ types: getArmState() });
 });
+
+// Serve static client build if present
+const clientDist = path.join(__dirname, '../client/dist');
+if (fs.existsSync(clientDist)) {
+  app.use(express.static(clientDist));
+  app.use((req, res, next) => {
+    if (req.method === 'GET' && !req.path.startsWith('/api') && !req.path.startsWith('/socket.io')) {
+      return res.sendFile(path.join(clientDist, 'index.html'));
+    }
+    next();
+  });
+} else {
+  app.get('/', (req, res) => {
+    res.send('Server is alive');
+  });
+}

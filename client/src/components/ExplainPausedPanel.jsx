@@ -17,8 +17,7 @@
    - onContinue      : callback() — called after POST /api/explain/continue
    ============================================================ */
 import React, { useState } from 'react';
-
-const API_BASE = 'http://localhost:5000';
+import { API_BASE } from '../apiConfig.js';
 
 function ExplainPausedPanel({ paused, types, selectedEventId, onSelectEvent, onContinue }) {
   const [continueError, setContinueError] = useState('');

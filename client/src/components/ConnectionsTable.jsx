@@ -7,8 +7,7 @@
    GET /api/dev/reciprocity/:fileId/:peerLabel.
    ============================================================ */
 import React, { useState } from 'react';
-
-const API_BASE = 'http://localhost:5000';
+import { API_BASE } from '../apiConfig.js';
 
 // Work out the serving relationship between `me` and `them`.
 // "I serve them"  → their id is in my unchoked list or is my optimistic.

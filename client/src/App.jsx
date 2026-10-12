@@ -41,8 +41,7 @@ import AddPeerDialog       from './components/AddPeerDialog.jsx';
 import DeleteConfirmDialog from './components/DeleteConfirmDialog.jsx';
 import ExplainPickerStrip  from './components/ExplainPickerStrip.jsx';
 import ExplainPausedPanel  from './components/ExplainPausedPanel.jsx';
-
-const API_BASE = 'http://localhost:5000';
+import { API_BASE }        from './apiConfig.js';
 
 function App() {
   // --- File list ---
@@ -173,7 +172,7 @@ function App() {
     }, 2000);
 
     // Socket.IO — re-fetch when the server fires 'swarm-update'
-    const socket = io(API_BASE);
+    const socket = API_BASE ? io(API_BASE) : io();
     socket.on('swarm-update', (payload) => {
       if (payload.fileId !== fileId) return;
       if (socketFetchInFlightRef.current) return;

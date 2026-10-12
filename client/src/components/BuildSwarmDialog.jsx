@@ -9,8 +9,7 @@
    then resumes if it was running before.
    ============================================================ */
 import React, { useState } from 'react';
-
-const API_BASE = 'http://localhost:5000';
+import { API_BASE } from '../apiConfig.js';
 
 // Creates a blank row. `fillPct` is only used when role === 'random'.
 function newRow() {

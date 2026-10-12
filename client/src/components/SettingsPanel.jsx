@@ -7,8 +7,7 @@
    Shows the server's `error` field if validation fails.
    ============================================================ */
 import React, { useState, useEffect } from 'react';
-
-const API_BASE = 'http://localhost:5000';
+import { API_BASE } from '../apiConfig.js';
 
 // A single settings field with label, input, apply button and optional note.
 // `toMs` = multiply value by 1000 before sending (for interval fields shown in seconds).

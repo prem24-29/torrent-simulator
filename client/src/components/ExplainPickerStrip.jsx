@@ -16,8 +16,7 @@
                     so App.jsx can update its explainData
    ============================================================ */
 import React, { useState } from 'react';
-
-const API_BASE = 'http://localhost:5000';
+import { API_BASE } from '../apiConfig.js';
 
 // Helper: POST to an explain endpoint and call onTypesUpdate with the
 // fresh types returned. Shows an error message on failure.

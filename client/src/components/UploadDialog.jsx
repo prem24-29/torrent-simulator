@@ -7,8 +7,7 @@
    list, and switches to the new file.
    ============================================================ */
 import React, { useState, useRef } from 'react';
-
-const API_BASE = 'http://localhost:5000';
+import { API_BASE } from '../apiConfig.js';
 
 function UploadDialog({ onClose, onUploaded }) {
   const [error, setError]     = useState('');

@@ -12,8 +12,7 @@
    Sends: POST /api/dev/add-peer
    ============================================================ */
 import React, { useState } from 'react';
-
-const API_BASE = 'http://localhost:5000';
+import { API_BASE } from '../apiConfig.js';
 
 function AddPeerDialog({ fileId, onClose }) {
   const [label,   setLabel]   = useState('');
